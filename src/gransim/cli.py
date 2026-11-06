@@ -225,6 +225,13 @@ def cmd_rerender(args: argparse.Namespace) -> None:
                            tag=args.tag, limit=args.limit, progress=lambda m: print(m, flush=True)))
 
 
+def cmd_check_recordings(args: argparse.Namespace) -> None:
+    """Check new recordings (format, level, clipping, shaker speed) before use."""
+    from gransim.analysis.recordings import check_folder
+
+    check_folder(args.folder, nominal_rpm=args.rpm)
+
+
 def cmd_identifiability(args: argparse.Namespace) -> None:
     """Spec 8.1: where N and the material mix in the acoustic statistics (no learning)."""
     from gransim.analysis.identifiability import run
@@ -340,6 +347,12 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--limit", type=int, default=None)
     p.set_defaults(func=cmd_rerender)
+
+    p = sub.add_parser("check-recordings", help="check a folder of new recordings before use")
+    p.add_argument("folder")
+    p.add_argument("--rpm", type=float, default=372.0,
+                   help="set speed when the file names do not carry it (first-study names)")
+    p.set_defaults(func=cmd_check_recordings)
 
     p = sub.add_parser("identifiability", help="N-vs-material mixing map of a sweep (spec 8.1)")
     p.add_argument("out", help="sweep output folder")

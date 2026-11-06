@@ -49,3 +49,23 @@ def test_crank_slider_motion():
     acc = np.gradient(u, dt)[5:-5]
     assert acc.min() == pytest.approx(-(1 + lam) * A * w ** 2, rel=2e-3)
     assert acc.max() == pytest.approx((1 - lam) * A * w ** 2, rel=2e-2)
+
+
+def test_check_recordings_flags_speed_level_and_sheet(tmp_path):
+    from gransim.acoustics.assets import write_wav
+    from gransim.analysis.recordings import check_folder
+
+    for rep in range(1, 5):
+        write_wav(tmp_path / f"bb012_N050_rpm372_{rep:02d}.wav", FS, 0.3 * clicks(6.2, 7.5, seed=rep))
+    write_wav(tmp_path / "bb012_N050_rpm372_05.wav", FS, 0.3 * clicks(6.6, 7.5, seed=9))   # +6.5 %
+    write_wav(tmp_path / "bb012_N050_rpm372_06.wav", FS, 0.06 * clicks(6.2, 7.5, seed=8))  # moved mic
+    (tmp_path / "recordings.csv").write_text(
+        "file,particle,N,rpm\n" + "".join(f"bb012_N050_rpm372_{r:02d}.wav,bb012,50,372\n" for r in range(1, 6))
+        + "bb012_N050_rpm372_07.wav,bb012,50,372\n")
+    rows = {r["file"]: r for r in check_folder(tmp_path, log=lambda m: None)}
+    assert not rows["bb012_N050_rpm372_01.wav"]["issues"]
+    assert rows["bb012_N050_rpm372_01.wav"]["N"] == 50
+    assert any("off the set" in i for i in rows["bb012_N050_rpm372_05.wav"]["issues"])
+    assert any("level" in i for i in rows["bb012_N050_rpm372_06.wav"]["issues"])
+    assert any("not listed" in i for i in rows["bb012_N050_rpm372_06.wav"]["issues"])
+    assert (tmp_path / "check_report.csv").exists()

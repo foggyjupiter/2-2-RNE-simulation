@@ -74,6 +74,8 @@ rpm은 전원 전압으로 조절하므로, **전압과 rpm의 대응**을 한 �
 
 파일과 `recordings.csv`를 한 폴더에 모아 주시면 됩니다. 이후 처리는 자동입니다.
 
+- **먼저 점검**: `gransim check-recordings <폴더>` — 파일마다 형식(wav·48 kHz·길이), 음량·클리핑, 소리로 잰 가진 속도와 적어 둔 속도의 차이, 같은 조건 반복 중 음량이 튀는 파일, `recordings.csv`와 파일 목록의 불일치를 알려 줍니다 (`<폴더>/check_report.csv`). 1차 연구 녹음에 돌려 보면 N = 95·100 클립 대부분이 설정보다 5~7 % 빠르게 잡힙니다. 휴대폰이 m4a로 저장했다면 48 kHz wav로 바꿔 주세요.
+
 - 잡음 라이브러리·응답 모델 갱신: `gransim build-assets <폴더> --rpm <rpm>`
 - 실측 대비 시뮬레이션 비교: `gransim`의 sim2real 비교
 - 모델 평가: `rneml evaluate <모델> --real-dir <폴더>`, 새 녹음 추정: `rneml predict <파일들> --run <모델>`
