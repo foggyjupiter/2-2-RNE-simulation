@@ -43,8 +43,36 @@ def split(x: np.ndarray, fs: float, fc: float, part: str) -> np.ndarray:
     return np.fft.irfft(X * (L if part == "low" else 1.0 - L), m)[:n]
 
 
+PLATE_AXES = {0: (0, 1), 1: (0, 1), 2: (1, 2), 3: (1, 2), 4: (0, 2), 5: (0, 2)}   # in-plane axes
+
+
+def radiation_weights(imp: np.ndarray, cfg: SimConfig, seed: int) -> np.ndarray:
+    """Per-impact radiation efficiency (mean ≈ 1): plate-mode position weighting for wall
+    impacts and a log-normal impact-to-impact factor (both off by default)."""
+    ac = cfg.acoustics
+    w = np.ones(len(imp))
+    if ac.position_weighting > 0:
+        L = cfg.container.size
+        pos = np.stack([imp["x"], imp["y"], imp["z"]], 1)
+        for wid, (a, b) in PLATE_AXES.items():
+            m = (imp["kind"] == 1) & (imp["wall_id"] == wid)
+            if m.any():
+                u = np.clip(pos[m, a] / L[a], 0, 1)
+                v = np.clip(pos[m, b] / L[b], 0, 1)
+                shape = np.sin(np.pi * u) * np.sin(np.pi * v)
+                # normalise to mean 1 for impacts spread uniformly over the wall
+                p = ac.position_weighting
+                from math import gamma, pi, sqrt
+                mean_sin_p = gamma((p + 1) / 2) / (sqrt(pi) * gamma(p / 2 + 1))
+                w[m] = shape ** p / mean_sin_p ** 2
+    if ac.impact_gain_sigma > 0:
+        s = ac.impact_gain_sigma
+        w *= np.exp(np.random.default_rng([seed, 991]).standard_normal(len(imp)) * s - 0.5 * s * s)
+    return w
+
+
 def build_sources(events: np.ndarray, wall_force, cfg: SimConfig, t_start: float,
-                  n_out: int) -> tuple[dict[str, np.ndarray], dict]:
+                  n_out: int, seed: int = 0) -> tuple[dict[str, np.ndarray], dict]:
     """Source force signals [N] per channel at cfg.acoustics.fs, sample 0 at t_start [s].
 
     events: processed event table; wall_force: :class:`WallForce`.
@@ -72,6 +100,7 @@ def build_sources(events: np.ndarray, wall_force, cfg: SimConfig, t_start: float
             tau = event_contact_times(imp, cfg)
         else:
             tau = np.full(len(imp), ac.tau_fixed)
+        rw = radiation_weights(imp, cfg, seed)
         for ch in CHANNELS:
             if ch == "pp":
                 m = imp["kind"] == 0
@@ -84,13 +113,14 @@ def build_sources(events: np.ndarray, wall_force, cfg: SimConfig, t_start: float
                 continue
             # pulse centred on the event's force peak; width τ_c
             t_ev = imp["t_peak"][m] - 0.5 * tau[m]
-            p = render_pulses(t_ev, imp["J_n"][m], tau[m], t_start, n_out, fs,
+            p = render_pulses(t_ev, imp["J_n"][m] * rw[m], tau[m], t_start, n_out, fs,
                               ac.pulse_shape, ac.oversample)
             out[ch] += gain * split(p, fs, fc, "high")
     if ac.highpass_hz > 0:
         for ch in CHANNELS:
             out[ch] = split(out[ch], fs, ac.highpass_hz, "high")
-    info = {"band_split_hz": fc, "highpass_hz": ac.highpass_hz, "n_impacts": int((events["contact_type"] == 0).sum()) if len(events) else 0,
+    info = {"band_split_hz": fc, "highpass_hz": ac.highpass_hz,
+            "position_weighting": ac.position_weighting, "impact_gain_sigma": ac.impact_gain_sigma, "n_impacts": int((events["contact_type"] == 0).sum()) if len(events) else 0,
             "tau_c_median_s": float(np.median(tau)) if len(tau) else None,
             "tau_mode": ac.tau_mode, "pulse_shape": ac.pulse_shape, "pp_gain": ac.pp_gain}
     return out, info

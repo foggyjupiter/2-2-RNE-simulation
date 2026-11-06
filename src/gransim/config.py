@@ -270,6 +270,15 @@ class AcousticConfig(_Strict):
     impact_component: bool = Field(True, description="Source (ii): impact pulses (high band)")
     pp_gain: float = Field(1.0, ge=0, description="Relative gain of particle-particle impacts "
                                                   "(they reach the box only indirectly)")
+    position_weighting: float = Field(
+        0.0, ge=0, description="Exponent of the wall's fundamental plate-mode shape "
+                               "sin(πu/L_u)·sin(πv/L_v) at each wall impact (normalised to mean 1): "
+                               "impacts near the middle of a wall radiate more than near its edges. "
+                               "0 = off")
+    impact_gain_sigma: float = Field(
+        0.0, ge=0, description="Log-normal σ of a per-impact radiation efficiency (mean 1): "
+                               "stands for unmodelled impact-to-impact variation (angle, spin, "
+                               "local wall stiffness). 0 = off")
     response: Literal["measured", "synthetic"] = Field(
         "measured", description="measured = statistical model from first-study recordings "
                                 "(assets/impulse_response/response_model.npz); synthetic = modes")
@@ -283,6 +292,10 @@ class AcousticConfig(_Strict):
     ring_tau: Optional[float] = Field(None, gt=0, description="Ring/reverb decay time constant "
                                                               "[s]; None = measured value")
     ir_length_s: float = Field(0.35, gt=0, description="Length of the drawn impulse responses [s]")
+    direct_attack_s: float = Field(
+        0.0, ge=0, description="Attack time constant of the direct (click) part of the response "
+                               "[s]: envelope (1 − e^(−t/τa))·e^(−t/τd). Real clicks rise over "
+                               "≈ 0.5 ms (modes building up, early reflections); 0 = instant")
     eq: bool = Field(True, description="Apply the sim2real spectral equaliser "
                                        "(assets/impulse_response/eq.npz) if present; one "
                                        "N-independent correction for all clips")

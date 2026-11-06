@@ -61,7 +61,7 @@ def render(cfg: SimConfig, events: np.ndarray, wall_force, record_window: tuple,
     n_tot = int(round((ac.warmup_s + dur) * fs))
     n_out = int(round(dur * fs))
 
-    src, src_info = build_sources(events, wall_force, cfg, t0_rec, n_tot)
+    src, src_info = build_sources(events, wall_force, cfg, t0_rec, n_tot, seed)
     irs, ir_info = draw_responses(ac, list(CHANNELS), rng)
     wet = {c: apply_response(src[c], irs[c]) for c in CHANNELS}
     clean = ac.mic_gain * sum(wet[c] for c in CHANNELS)[n_tot - n_out:]

@@ -1,0 +1,149 @@
+"""Report figures from the saved results (results/figures/*.png).
+
+    python scripts/make_figures.py --recordings <first-study data-all> [--runs runs/s2r] [--dataset datasets/v1]
+
+  fig_sim2real_features.png  real (mean ± sd over 15 clips) vs simulation per N, key features
+  fig_spectrograms.png       real vs simulated mel spectrograms, same N, 1.5 s excerpts
+  fig_identifiability.png    Cramér-Rao bound on the N error, material known vs unknown
+  fig_dataset_params.png     distributions of N and the material properties in the dataset
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "results" / "figures"
+plt.rcParams.update({"font.size": 9, "axes.grid": True, "grid.alpha": 0.3})
+
+
+def sim2real_features():
+    p = ROOT / "results" / "sim2real" / "comparison.json"
+    if not p.exists():
+        return
+    rep = json.loads(p.read_text())
+    table = rep["table"]
+    Ns = sorted(int(n) for n in table)
+    feats = [("rms", "RMS"), ("clip_fraction", "clipping fraction"), ("kurtosis", "kurtosis ψ3"),
+             ("centroid_hz", "spectral centroid [Hz]"), ("onset_rate", "detected onsets [1/s]"),
+             ("fold_peak_to_mean", "period-folded peakiness")]
+    fig, ax = plt.subplots(2, 3, figsize=(11, 6))
+    for a, (k, lab) in zip(ax.ravel(), feats):
+        rows = [{r["feature"]: r for r in table[str(n)]}[k] for n in Ns]
+        a.errorbar(Ns, [r["real_mean"] for r in rows], yerr=[r["real_std"] for r in rows],
+                   fmt="o-", ms=3, label="real (15 clips)")
+        a.plot(Ns, [r["sim_mean"] for r in rows], "s--", ms=3, label="simulation")
+        a.set_xlabel("N")
+        a.set_title(lab)
+    ax[0, 0].legend()
+    fig.suptitle(f"Simulation vs first-study recordings (372 rpm), mic gain {rep['mic_gain']:.2f}")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_sim2real_features.png", dpi=130)
+    plt.close(fig)
+
+
+def spectrograms(recordings: str, runs: str):
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from gransim.acoustics.assets import read_wav
+    from gransim.acoustics.render import load_run, render
+    from gransim.config import AcousticConfig
+    from scipy import signal
+
+    Ns = [5, 20, 100]
+    fig, ax = plt.subplots(2, len(Ns), figsize=(12, 5), sharey=True)
+    for j, N in enumerate(Ns):
+        f_real = sorted(glob.glob(f"{recordings}/{N}-*.wav"))
+        rd = Path(runs) / f"N{N}_s0"
+        if not f_real or not rd.exists():
+            continue
+        fs, xr = read_wav(f_real[0])
+        cfg, ev, wf, win = load_run(rd)
+        ac = AcousticConfig.model_validate({**cfg.acoustics.model_dump(), "drr": 6.0, "mic_gain": 0.92})
+        xs = render(cfg, ev, wf, win, seed=0, acoustics=ac).audio
+        for i, (x, lab) in enumerate(((xr, "real"), (xs, "simulation"))):
+            seg = x[int(1.0 * fs):int(2.5 * fs)]
+            f, t, Z = signal.stft(seg, fs, nperseg=1024, noverlap=1024 - 240)
+            S = 20 * np.log10(np.abs(Z) + 1e-6)
+            ax[i, j].pcolormesh(t, f / 1000, S, vmin=S.max() - 70, vmax=S.max(), shading="auto", cmap="magma")
+            ax[i, j].set_title(f"{lab}, N = {N}")
+            ax[i, j].set_xlabel("time [s]")
+            if j == 0:
+                ax[i, j].set_ylabel("kHz")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_spectrograms.png", dpi=130)
+    plt.close(fig)
+
+
+def identifiability():
+    p = ROOT / "results" / "identifiability" / "identifiability.json"
+    if not p.exists():
+        return
+    fb = json.loads(p.read_text()).get("fisher_bound")
+    if not fb:
+        return
+    bins = list(fb["by_N"])
+    x = np.arange(len(bins))
+    fig, a = plt.subplots(figsize=(5.5, 3.6))
+    a.bar(x - 0.2, [fb["by_N"][b]["known"] for b in bins], 0.4, label="material known")
+    a.bar(x + 0.2, [fb["by_N"][b]["unknown"] for b in bins], 0.4, label="material unknown")
+    a.set_xticks(x)
+    a.set_xticklabels(bins)
+    a.set_xlabel("N")
+    a.set_ylabel("Cramér-Rao bound on N error (1σ)")
+    a.set_title("Information in 13 summary statistics (single condition)")
+    a.legend()
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_identifiability.png", dpi=130)
+    plt.close(fig)
+
+
+def dataset_params(dataset: str):
+    p = Path(dataset) / "manifest.jsonl"
+    if not p.exists():
+        return
+    rows = [json.loads(l) for l in open(p)]
+    rows = [r for r in rows if r["render"] == 0]
+    cols = [("N", 1, "N"), ("particle_diameter_m", 1e3, "diameter [mm]"),
+            ("particle_density", 1, "density [kg/m³]"), ("restitution_pp", 1, "e particle-particle"),
+            ("restitution_pw", 1, "e particle-wall"), ("friction_pw", 1, "μ particle-wall")]
+    fig, ax = plt.subplots(2, 3, figsize=(10, 5.5))
+    for a, (k, sc, lab) in zip(ax.ravel(), cols):
+        v = np.array([r[k] for r in rows], float) * sc
+        sp = np.array([r["split"] for r in rows])
+        a.hist([v[sp == s] for s in ("train", "val", "test", "test_ood", "pairs")], bins=25, stacked=True,
+               label=["train", "val", "test", "test_ood", "pairs"])
+        a.set_title(lab)
+    ax[0, 0].legend(fontsize=7)
+    fig.suptitle(f"Dataset v1: {len(rows)} dynamics runs")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_dataset_params.png", dpi=130)
+    plt.close(fig)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--recordings", help="first-study data-all folder")
+    ap.add_argument("--runs", default=str(ROOT / "runs" / "s2r"))
+    ap.add_argument("--dataset", default=str(ROOT / "datasets" / "v1"))
+    a = ap.parse_args()
+    OUT.mkdir(parents=True, exist_ok=True)
+    sim2real_features()
+    identifiability()
+    dataset_params(a.dataset)
+    if a.recordings:
+        spectrograms(a.recordings, a.runs)
+    print("figures:", sorted(p.name for p in OUT.glob("*.png")))
+
+
+if __name__ == "__main__":
+    main()

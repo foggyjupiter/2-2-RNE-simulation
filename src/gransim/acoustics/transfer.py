@@ -59,7 +59,10 @@ def measured_ir(model: dict, cfg: AcousticConfig, rng: np.random.Generator) -> n
     f = model["f"]
     tau = float(cfg.ring_tau or model["tau"])
     drr = float(cfg.drr or model["drr"])
-    d = _shaped_noise(f, model["direct_psd"], n, fs, rng) * np.exp(-t / DIRECT_DECAY_S)
+    env = np.exp(-t / DIRECT_DECAY_S)
+    if cfg.direct_attack_s > 0:
+        env = env * (1.0 - np.exp(-t / cfg.direct_attack_s))
+    d = _shaped_noise(f, model["direct_psd"], n, fs, rng) * env
     r = _shaped_noise(f, model["tail_psd"], n, fs, rng) * np.exp(-t / tau)
     ramp = int(0.0005 * fs)
     r[:ramp] *= np.linspace(0.0, 1.0, ramp)
