@@ -161,6 +161,7 @@ class StepParams(NamedTuple):
     amp: float
     omega: float
     ramp: float
+    crank: float
     model: int
     k_pp: float
     k_pw: float
@@ -203,7 +204,7 @@ def advance(x, v, w, rad, mass, inv_I,
             return s, parity, ERR_EVENT_BUFFER_FULL
         t = t0 + s * dt
         recording = t >= t_rec0
-        zc, uc = container_motion(t, P.amp, P.omega, P.ramp)
+        zc, uc = container_motion(t, P.amp, P.omega, P.ramp, P.crank)
         F[:, :] = 0.0
         T[:, :] = 0.0
         Fd[:, :] = 0.0
@@ -605,7 +606,8 @@ class Simulation:
         return StepParams(
             dt=cp["dt"], g=self.cfg.gravity, Lx=Lx, Ly=Ly, Lz=Lz,
             amp=self.A if shaking else 0.0, omega=2.0 * math.pi * self.f,
-            ramp=self.cfg.excitation.ramp_time, model=cp["model"],
+            ramp=self.cfg.excitation.ramp_time, crank=self.cfg.excitation.crank_ratio,
+            model=cp["model"],
             k_pp=cp["k_pp"], k_pw=cp["k_pw"], E_pp=cp["E_pp"], E_pw=cp["E_pw"],
             damp_pp=cp["damp_pp"], damp_pw=cp["damp_pw"],
             mu_pp=c.friction_pp, mu_pw=c.friction_pw,
@@ -716,7 +718,7 @@ class Simulation:
         d = self.diag
         ke_t, ke_r, pe = self.energies()
         zc, uc = container_motion(self.t, self.A, 2 * math.pi * self.f,
-                                  self.cfg.excitation.ramp_time)
+                                  self.cfg.excitation.ramp_time, self.cfg.excitation.crank_ratio)
         d.t.append(self.t)
         d.zc.append(zc)
         d.ke_trans.append(ke_t)
@@ -763,7 +765,8 @@ class Simulation:
                 self.sample()
             if trajectory is not None and done % n_traj == 0:
                 zc, _ = container_motion(self.t, self.A, 2 * math.pi * self.f,
-                                         self.cfg.excitation.ramp_time)
+                                         self.cfg.excitation.ramp_time,
+                                         self.cfg.excitation.crank_ratio)
                 trajectory.append((self.t, zc, self.x.copy()))
 
 

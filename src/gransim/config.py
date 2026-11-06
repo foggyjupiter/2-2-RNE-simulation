@@ -169,6 +169,12 @@ class ExcitationConfig(_Strict):
     gamma: Optional[float] = Field(None, ge=0, description="Γ = A(2πf)²/g [-]")
     ramp_time: float = Field(
         0.2, ge=0, description="Smooth start-up of the amplitude envelope [s]")
+    crank_ratio: float = Field(
+        0.0, ge=0, lt=0.5,
+        description="λ = crank radius / connecting-rod length of a crank-slider drive. Adds "
+                    "the second harmonic z = A[sin ωt − (λ/4) cos 2ωt] (exact to O(λ²)): the "
+                    "downward acceleration at the top is (1+λ)Aω², the upward one at the "
+                    "bottom (1−λ)Aω². Γ keeps its nominal meaning Aω²/g. 0 = pure sine")
 
     @model_validator(mode="after")
     def _check(self) -> "ExcitationConfig":

@@ -25,12 +25,20 @@ N_WALLS = 6
 
 
 @njit(cache=True, inline="always")
-def container_motion(t, amp, omega, ramp):
-    """Return (z_c [m], u_c [m/s]) at time t [s] since shaking started."""
+def container_motion(t, amp, omega, ramp, crank=0.0):
+    """Return (z_c [m], u_c [m/s]) at time t [s] since shaking started.
+
+    crank = λ of a crank-slider drive: z = A[sin ωt − (λ/4) cos 2ωt] (λ = 0: pure sine).
+    """
     if amp == 0.0 or t <= 0.0:
         return 0.0, 0.0
     sn = math.sin(omega * t)
     cs = math.cos(omega * t)
+    if crank != 0.0:
+        c2 = math.cos(2.0 * omega * t)
+        s2 = math.sin(2.0 * omega * t)
+        cs = cs + 0.5 * crank * s2         # d/dt of the shape, divided by ω
+        sn = sn - 0.25 * crank * c2        # shape
     if ramp > 0.0 and t < ramp:
         a = math.pi / ramp
         s = 0.5 * (1.0 - math.cos(a * t))
