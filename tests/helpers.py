@@ -11,10 +11,10 @@ from gransim.dynamics.engine import A_DCORR, A_DN, A_DT, A_EN, A_ET, A_WK, Simul
 def still_config(**kw) -> SimConfig:
     """Config with the container at rest (free mode, A = 0). Keyword args are top-level sections.
 
-    Uses the linear contact model unless ``contact.model`` is given.
+    Uses the linear contact model and flat walls (no roughness) unless ``contact`` says otherwise.
     """
     base = {"excitation": {"mode": "free", "amplitude": 0.0, "frequency": 10.0}}
-    contact = {"model": "linear", **kw.pop("contact", {})}
+    contact = {"model": "linear", "wall_roughness_deg": 0.0, **kw.pop("contact", {})}
     base.update(kw)
     base["contact"] = contact
     return SimConfig.model_validate(base)

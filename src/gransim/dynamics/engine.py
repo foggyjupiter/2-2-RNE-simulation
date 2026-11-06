@@ -120,6 +120,37 @@ def _accumulate(rec, is_new, t, dt, ddot, fn, ftx, fty, ftz, px, py, pz):
         rec[H_PZ] = pz
 
 
+N_RELIEF_MODES = 12
+
+
+def wall_relief(cfg: SimConfig, rng: np.random.Generator) -> np.ndarray:
+    """Frozen random micro-relief of the bottom and top walls, shape (2, modes, 4).
+
+    h(x, y) = Σ_m a_m sin(k_m·(x, y) + φ_m) with wavelengths uniform in [0.5 d, 2 d] and
+    random directions. Amplitudes are scaled so the rms surface slope per horizontal
+    component equals tan(contact.wall_roughness_deg). Stands for BB asphericity, wall
+    unevenness and shaker wobble: it breaks the unphysical lockstep bouncing of sparse
+    layers. Columns: k_x [1/m], k_y [1/m], φ [rad], a [m]. Zero modes when roughness is 0.
+    """
+    sig = math.tan(math.radians(cfg.contact.wall_roughness_deg))
+    if sig == 0.0:
+        return np.zeros((2, 0, 4))
+    d = cfg.particles.diameter
+    out = np.zeros((2, N_RELIEF_MODES, 4))
+    for w in range(2):
+        lam = rng.uniform(0.5 * d, 2.0 * d, N_RELIEF_MODES)
+        th = rng.uniform(0.0, 2.0 * math.pi, N_RELIEF_MODES)
+        k = 2.0 * math.pi / lam
+        out[w, :, 0] = k * np.cos(th)
+        out[w, :, 1] = k * np.sin(th)
+        out[w, :, 2] = rng.uniform(0.0, 2.0 * math.pi, N_RELIEF_MODES)
+        # slope variance per component: Σ a² k_x² / 2 (and same for y on average)
+        sx = np.sum(out[w, :, 0] ** 2) / 2.0
+        sy = np.sum(out[w, :, 1] ** 2) / 2.0
+        out[w, :, 3] = sig / math.sqrt(0.5 * (sx + sy))
+    return out
+
+
 class StepParams(NamedTuple):
     """Scalar parameters passed to the Numba kernel (SI units)."""
     dt: float
@@ -151,7 +182,7 @@ def advance(x, v, w, rad, mass, inv_I,
             hj, hc, hf, nj, nc, nf, hfound,
             wf, won, nwf, nwon,
             head, nxt, F, T, Fd, Td, dims, P, t0, nsteps, acc,
-            ev, ev_n, wforce, t_rec0, fs_force):
+            ev, ev_n, wforce, t_rec0, fs_force, rough):
     """Advance the system by up to ``nsteps`` steps starting at shaking time t0 [s].
 
     History buffers are swapped internally every step. Returns
@@ -311,22 +342,47 @@ def advance(x, v, w, rad, mass, inv_I,
                         _emit(ev, ev_n, hf[i, k], KIND_PP, -1, i, hj[i, k], t, 0)
 
         # ---------------- particle-wall ----------------
+        # Bottom and top walls carry a frozen random micro-relief h(x, y) (see
+        # wall_relief); the overlap is δ = R − distance to the relief surface and the
+        # normal force is fn·(∓h_x, ∓h_y, ±1) = −fn ∇δ, i.e. exactly conservative, so the
+        # energy balance is unchanged. Its z component is exactly fn, so wall impulses and
+        # momentum bookkeeping are as for flat walls. Side walls are flat.
+        nmode = rough.shape[1]
         for i in range(N):
             for wi in range(N_WALLS):
                 pos, ax, sgn = wall_plane(wi, P.Lx, P.Ly, P.Lz, zc)
                 sd = (x[i, ax] - pos) * sgn
+                g0 = 0.0
+                g1 = 0.0
+                g2 = 0.0
+                if ax == 0:
+                    g0 = sgn
+                elif ax == 1:
+                    g1 = sgn
+                else:
+                    g2 = sgn
+                if wi <= 1 and nmode > 0:
+                    hh = 0.0
+                    hx = 0.0
+                    hy = 0.0
+                    for m in range(nmode):
+                        ph = rough[wi, m, 0] * x[i, 0] + rough[wi, m, 1] * x[i, 1] + rough[wi, m, 2]
+                        am = rough[wi, m, 3]
+                        hh += am * math.sin(ph)
+                        cph = am * math.cos(ph)
+                        hx += cph * rough[wi, m, 0]
+                        hy += cph * rough[wi, m, 1]
+                    # h > 0 moves the surface inward; force direction −∇δ = (−h_x, −h_y, ±1)
+                    sd -= hh
+                    g0 = -hx
+                    g1 = -hy
                 delta = rad[i] - sd
                 if delta > 0.0:
-                    ri = sd  # lever arm: centre to contact point on the wall plane
-                    n0 = 0.0
-                    n1 = 0.0
-                    n2 = 0.0
-                    if ax == 0:
-                        n0 = sgn
-                    elif ax == 1:
-                        n1 = sgn
-                    else:
-                        n2 = sgn
+                    gn = math.sqrt(g0 * g0 + g1 * g1 + g2 * g2)
+                    n0 = g0 / gn
+                    n1 = g1 / gn
+                    n2 = g2 / gn
+                    ri = rad[i] - delta  # lever arm: centre to contact point
                     was_on = won[i, wi] == 1
                     if was_on:
                         for m in range(wf.shape[2]):
@@ -352,9 +408,10 @@ def advance(x, v, w, rad, mass, inv_I,
                         b = int((t - t_rec0) * fs_force)
                         if b < nbins:
                             wforce[wi, b] += fn * dt
-                    fx = fn * n0 + ftx
-                    fy = fn * n1 + fty
-                    fz = fn * n2 + ftz
+                    # normal force fn·g (g = −∇δ, |g| ≥ 1) is the exact gradient force
+                    fx = fn * g0 + ftx
+                    fy = fn * g1 + fty
+                    fz = fn * g2 + ftz
                     F[i, 0] += fx
                     F[i, 1] += fy
                     F[i, 2] += fz
@@ -365,14 +422,14 @@ def advance(x, v, w, rad, mass, inv_I,
                     T[i, 1] -= ri * nt1
                     T[i, 2] -= ri * nt2
                     fdn = fn - fs
-                    Fd[i, 0] += fdn * n0 + fdx
-                    Fd[i, 1] += fdn * n1 + fdy
-                    Fd[i, 2] += fdn * n2 + fdz
+                    Fd[i, 0] += fdn * g0 + fdx
+                    Fd[i, 1] += fdn * g1 + fdy
+                    Fd[i, 2] += fdn * g2 + fdz
                     Td[i, 0] -= ri * (n1 * fdz - n2 * fdy)
                     Td[i, 1] -= ri * (n2 * fdx - n0 * fdz)
                     Td[i, 2] -= ri * (n0 * fdy - n1 * fdx)
                     acc[A_WIN] += fz * uc * dt
-                    acc[A_DN] += dn
+                    acc[A_DN] += dn * gn  # damping force is (fn − fs)·g, |g|·(−v·n) = −v·g
                     acc[A_DT] += dtt
                     acc[A_WK] += wk
                     acc[A_EN] += en
@@ -492,6 +549,7 @@ class Simulation:
         if warn:
             check_config(cfg)
         self.rng = np.random.default_rng(cfg.seed)
+        self.rough = wall_relief(cfg, np.random.default_rng([cfg.seed, 7919]))
         self.radius, self.mass = particle_properties(cfg, self.rng)
         n = self.radius.size
         self.n = n
@@ -575,7 +633,7 @@ class Simulation:
                 self.wf, self.won, self.nwf, self.nwon,
                 self.head, self.nxt, self.F, self.T, self.Fd, self.Td,
                 self.dims, P, t0 + done * P.dt, nsteps - done, self.acc,
-                self.ev, self.ev_n, self.wforce, t_rec0, self.fs_force)
+                self.ev, self.ev_n, self.wforce, t_rec0, self.fs_force, self.rough)
             self.wall_time += time.perf_counter() - tic
             done += k
             if parity:

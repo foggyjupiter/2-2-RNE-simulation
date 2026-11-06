@@ -111,6 +111,12 @@ class ContactConfig(_Strict):
     tangential_stiffness_ratio: float = Field(
         2.0 / 7.0, gt=0, description="k_t / k_n (for Hertz: k_t / (dF_n/dδ))")
     tangential_damping_ratio: float = Field(0.5, ge=0, description="c_t / c_n")
+    wall_roughness_deg: float = Field(
+        2.0, ge=0, le=15,
+        description="RMS surface slope [deg] of a frozen random micro-relief on the bottom "
+                    "and top walls (wavelengths 0.5-2 d). Stands for BB asphericity, wall "
+                    "unevenness and shaker wobble; breaks the unphysical lockstep bouncing "
+                    "of sparse layers. 0 = perfectly flat walls.")
 
     @property
     def stiffness_mode(self) -> str:
@@ -219,6 +225,58 @@ class OutputConfig(_Strict):
     trajectory_interval: float = Field(2.0e-3, gt=0, description="Trajectory frame interval [s]")
 
 
+class AcousticConfig(_Strict):
+    """Acoustic synthesis (spec 6). Re-rendering from saved events never reruns the dynamics."""
+
+    fs: int = Field(48000, ge=8000, description="Output sampling rate [Hz]. The first-study "
+                    "recordings are 48 kHz and most impact energy lies at 8-24 kHz.")
+    warmup_s: float = Field(
+        0.3, ge=0, description="Initial part of the record window rendered but not output, so "
+                               "the ring of earlier impacts is present from the first sample [s]")
+    duration_s: Optional[float] = Field(
+        None, gt=0, description="Output length [s]; None = record window minus warm-up")
+    pulse_shape: Literal["half_sine", "hertz", "delta"] = "half_sine"
+    oversample: int = Field(16, ge=2, description="Fine-grid factor for pulse rendering")
+    tau_mode: Literal["hertz_real", "fixed"] = Field(
+        "hertz_real", description="Acoustic contact time: Hertz with the real moduli and each "
+                                  "event's impact speed, or a fixed value")
+    tau_fixed: float = Field(5.0e-5, gt=0, description="τ_c for tau_mode=fixed [s]")
+    band_split_hz: float = Field(
+        1500.0, gt=0, description="Crossover between the wall-force component (below) and the "
+                                  "impact-pulse component (above) [Hz]; complementary "
+                                  "zero-phase filters, so no impulse is counted twice")
+    highpass_hz: float = Field(
+        500.0, ge=0, description="Radiation + microphone high-pass applied to every source "
+                                 "[Hz]: a 5 cm box radiates little at low frequency and phone "
+                                 "microphones roll off; without it the slowly varying wall load "
+                                 "dominates below 4 kHz, unlike the recordings")
+    wall_force_component: bool = Field(True, description="Source (i): low-passed wall force")
+    impact_component: bool = Field(True, description="Source (ii): impact pulses (high band)")
+    pp_gain: float = Field(1.0, ge=0, description="Relative gain of particle-particle impacts "
+                                                  "(they reach the box only indirectly)")
+    response: Literal["measured", "synthetic"] = Field(
+        "measured", description="measured = statistical model from first-study recordings "
+                                "(assets/impulse_response/response_model.npz); synthetic = modes")
+    response_file: Optional[str] = Field(None, description="Override path of the response model")
+    drr: Optional[float] = Field(None, gt=0, description="Direct-to-reverberant energy ratio; "
+                                                         "None = measured value")
+    ring_tau: Optional[float] = Field(None, gt=0, description="Ring/reverb decay time constant "
+                                                              "[s]; None = measured value")
+    ir_length_s: float = Field(0.35, gt=0, description="Length of the drawn impulse responses [s]")
+    synthetic_modes: list[tuple[float, float, float]] = Field(
+        [(5900.0, 60.0, 0.3), (7400.0, 60.0, 0.4), (9400.0, 80.0, 1.0)],
+        description="synthetic response: (frequency [Hz], Q, relative amplitude) per mode")
+    mic_gain: float = Field(1.0, gt=0, description="Digital full-scale units per newton of "
+                                                   "source force (calibrated by sim2real)")
+    noise: bool = Field(True, description="Add background (motor) noise")
+    noise_dir: Optional[str] = Field(None, description="Noise library folder (index.yaml); "
+                                                       "None = assets/noise")
+    noise_gain: float = Field(1.0, ge=0, description="1 = recorded level (same mic gain)")
+    clip: bool = Field(True, description="Hard-clip at ±clip_level like the recording device")
+    clip_level: float = Field(1.0, gt=0)
+    bits: Literal[16, 32] = Field(16, description="16-bit PCM or 32-bit float wav")
+
+
 class SimConfig(_Strict):
     seed: int = 0
     gravity: float = Field(G_DEFAULT, ge=0, description="g [m/s^2], acts along -z")
@@ -229,6 +287,7 @@ class SimConfig(_Strict):
     time: TimeConfig = TimeConfig()
     events: EventConfig = EventConfig()
     output: OutputConfig = OutputConfig()
+    acoustics: AcousticConfig = AcousticConfig()
 
     @model_validator(mode="after")
     def _cross(self) -> "SimConfig":

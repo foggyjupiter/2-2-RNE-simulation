@@ -1,0 +1,15 @@
+description: 'Statistical response model of one impact at the microphone, measured
+  from N=5 first-study clips: direct-click spectrum (contact pulse divided out), ring/reverb
+  tail spectrum, decay time, direct-to-reverberant ratio. Mixed walls; no N dependence
+  measured yet.'
+response_model:
+  file: response_model.npz
+  fs: 48000
+  tau: 0.06157814459863729
+  tau_spread:
+  - 0.058603493907558625
+  - 0.0661863038808092
+  drr: 0.19245071769233332
+  n_direct: 899
+  n_tail: 53
+  tau_ref: 5.0e-05

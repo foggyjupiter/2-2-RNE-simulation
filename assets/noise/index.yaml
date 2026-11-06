@@ -1,0 +1,64 @@
+description: Motor/shaker background recorded with an empty box (N=0) at the microphone
+  position (phone, 2.7 m). rpm estimated from the envelope periodicity of the first-study
+  clips.
+files:
+- file: motor_rpm372_0-1.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-1.wav
+- file: motor_rpm372_0-10.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-10.wav
+- file: motor_rpm372_0-11.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-11.wav
+- file: motor_rpm372_0-12.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-12.wav
+- file: motor_rpm372_0-13.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-13.wav
+- file: motor_rpm372_0-14.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-14.wav
+- file: motor_rpm372_0-15.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-15.wav
+- file: motor_rpm372_0-2.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-2.wav
+- file: motor_rpm372_0-3.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-3.wav
+- file: motor_rpm372_0-4.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-4.wav
+- file: motor_rpm372_0-5.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-5.wav
+- file: motor_rpm372_0-6.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-6.wav
+- file: motor_rpm372_0-7.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-7.wav
+- file: motor_rpm372_0-8.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-8.wav
+- file: motor_rpm372_0-9.wav
+  rpm: 372.0
+  fs: 48000
+  source: first study, N=0 clip 0-9.wav

@@ -118,16 +118,18 @@ def test_separate_collisions_not_merged():
     assert rows.shape[0] == 2
 
 
-def shaken(n=60, mu=0.3, freq=9.0):
+def shaken(n=60, mu=0.3, freq=9.0, rough=2.0):
     return SimConfig(particles={"count": n},
                      excitation={"mode": "fixed_amplitude", "amplitude": 0.0134, "frequency": freq},
-                     contact={"model": "linear", "friction_pp": mu, "friction_pw": mu},
+                     contact={"model": "linear", "friction_pp": mu, "friction_pw": mu,
+                              "wall_roughness_deg": rough},
                      time={"settle_time": 0.3})
 
 
 @pytest.fixture(scope="module")
 def shaken_frictionless():
-    sim = Simulation(shaken(mu=0.0), warn=False)
+    # flat walls: then every wall impulse is along a coordinate axis
+    sim = Simulation(shaken(mu=0.0, rough=0.0), warn=False)
     sim.settle()
     sim.run(0.3)
     P0 = (sim.mass[:, None] * sim.v).sum(0)
@@ -179,3 +181,34 @@ def test_classification_sensitivity_monotone(shaken_frictionless):
     # higher v_impact -> fewer impacts; longer duration_max -> more impacts
     assert np.all(np.diff(n, axis=0) <= 0)
     assert np.all(np.diff(n, axis=1) >= 0)
+
+
+def test_relief_keeps_vertical_momentum_bookkeeping():
+    """With wall micro-relief the vertical normal force is still exactly fn, so
+    (μ = 0) bottom/top impulses + gravity = vertical momentum change."""
+    sim = Simulation(shaken(mu=0.0, rough=3.0), warn=False)
+    sim.settle()
+    sim.run(0.3)
+    P0 = (sim.mass[:, None] * sim.v).sum(0)
+    t0 = sim.t
+    ev, raw, wf, ep = record(sim, 0.4)
+    P1 = (sim.mass[:, None] * sim.v).sum(0)
+    pw = ev[ev["kind"] == KIND_PW]
+    J0 = pw["J_n"][pw["wall_id"] == 0].sum()
+    J1 = pw["J_n"][pw["wall_id"] == 1].sum()
+    M = sim.mass.sum()
+    assert P1[2] - P0[2] == pytest.approx(J0 - J1 - M * sim.cfg.gravity * (sim.t - t0), abs=1e-9)
+
+
+def test_relief_breaks_lockstep_bouncing():
+    """A sparse monolayer on perfectly flat walls bounces in lockstep (no pp collisions);
+    the micro-relief breaks that symmetry, as BB asphericity does in the real device."""
+    out = {}
+    for rough in (0.0, 2.0):
+        sim = Simulation(shaken(n=20, rough=rough, freq=6.2), warn=False)
+        sim.settle()
+        sim.run(1.0)
+        ev, *_ = record(sim, 1.0)
+        out[rough] = (ev["kind"] == KIND_PP).sum()
+    assert out[0.0] == 0
+    assert out[2.0] > 20

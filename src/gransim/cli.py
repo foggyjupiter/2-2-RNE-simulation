@@ -161,6 +161,35 @@ def cmd_gamma_c(args: argparse.Namespace) -> None:
         print(f"{op}: Γc increases with N -> {trend_increasing(gc, op)}")
 
 
+def cmd_render(args: argparse.Namespace) -> None:
+    """Re-render audio of a saved run (no dynamics)."""
+    from gransim.acoustics.render import load_run, render_run
+    from gransim.config import AcousticConfig, deep_merge
+
+    cfg, *_ = load_run(args.run)
+    ac = cfg.acoustics
+    sets = _parse_sets(args.set)
+    if args.config:
+        with open(args.config, encoding="utf-8") as fh:
+            sets = deep_merge((yaml.safe_load(fh) or {}).get("acoustics", {}), sets)
+    if sets:
+        ac = AcousticConfig.model_validate(deep_merge(ac.model_dump(), sets))
+    out = Path(args.out or Path(args.run) / "audio.wav")
+    meta = render_run(args.run, out, seed=args.seed, acoustics=ac)
+    print(json.dumps({k: meta[k] for k in ("duration_s", "rms", "clip_fraction", "n_impacts",
+                                            "tau_c_median_s", "noise_file")}, indent=2))
+    print(f"wrote {out}")
+
+
+def cmd_build_assets(args: argparse.Namespace) -> None:
+    """Derive the noise library and the response model from first-study recordings."""
+    from gransim.acoustics.assets import build_assets
+
+    info = build_assets(args.recordings, args.out, rpm=args.rpm, tau_ref=args.tau_ref,
+                        sparse_count=args.sparse_count, noise_count=args.noise_count)
+    print(json.dumps(info, indent=2, default=str))
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="gransim", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -209,6 +238,24 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--workers", type=int, default=None)
     p.add_argument("--budget", type=float, default=None)
     p.set_defaults(func=cmd_gamma_c)
+
+    p = sub.add_parser("render", help="(re)synthesise audio from a saved run")
+    p.add_argument("run", help="run folder (events.npz, wall_force.npz, config_snapshot.yaml)")
+    p.add_argument("--out", help="output wav (default RUN/audio.wav)")
+    p.add_argument("--seed", type=int, default=0, help="acoustic randomness (responses, noise)")
+    p.add_argument("--config", help="YAML whose `acoustics:` section overrides the run's")
+    p.add_argument("--set", action="append", help="acoustic override, e.g. mic_gain=0.5")
+    p.set_defaults(func=cmd_render)
+
+    p = sub.add_parser("build-assets", help="noise library + response model from recordings")
+    p.add_argument("recordings", help="folder with {N}-{k}.wav clips (first-study layout)")
+    p.add_argument("--out", default="assets")
+    p.add_argument("--rpm", type=float, required=True, help="shaker rpm of the clips")
+    p.add_argument("--tau-ref", type=float, default=5.0e-5,
+                   help="real contact time divided out of the click spectrum [s]")
+    p.add_argument("--sparse-count", type=int, default=5)
+    p.add_argument("--noise-count", type=int, default=0)
+    p.set_defaults(func=cmd_build_assets)
 
     args = ap.parse_args(argv)
     args.func(args)
