@@ -45,6 +45,7 @@ axes:
   acoustics.drr:              {dist: loguniform, low: 3.0, high: 12.0}
   acoustics.noise_gain:       {dist: uniform, low: 0.5, high: 1.5}
   acoustics.impact_gain_sigma: {dist: uniform, low: 0.0, high: 1.5}
+  acoustics.impact_source:    {dist: choice, values: [synthetic, recorded]}   # real BB clicks (assets/impacts)
 contrast_pairs:
   same_N: 20
   same_material: 20

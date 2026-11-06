@@ -1,0 +1,22 @@
+split pp0.95 pw0.7 sigma synthetic: gain 0.924 rms_rmse 0.035 onset_logerr 1.33 kurt_relerr 0.11 fold_err 0.44 pass 0.73
+   N=  5 onset  30.4/ 46.3  fold 4.36/4.55  kurt 10.86/12.39  rms 0.178/0.177
+   N= 20 onset  26.6/136.0  fold 3.24/2.08  kurt  2.14/ 1.87  rms 0.325/0.337
+   N= 50 onset   8.1/ 56.4  fold 2.51/2.31  kurt  0.34/ 0.22  rms 0.421/0.446
+   N=100 onset   2.3/ 13.2  fold 2.11/2.33  kurt -0.47/-0.30  rms 0.525/0.517
+split pp0.95 pw0.7 sigma recorded: gain 0.734 rms_rmse 0.061 onset_logerr 0.46 kurt_relerr 0.15 fold_err 0.45 pass 0.82
+   N=  5 onset  30.4/ 47.2  fold 4.36/4.83  kurt 10.86/10.66  rms 0.178/0.181
+   N= 20 onset  26.6/ 69.0  fold 3.24/2.38  kurt  2.14/ 1.62  rms 0.325/0.329
+   N= 50 onset   8.1/  8.7  fold 2.51/2.47  kurt  0.34/ 0.45  rms 0.421/0.408
+   N=100 onset   2.3/  1.1  fold 2.11/2.53  kurt -0.47/ 0.05  rms 0.525/0.468
+e0.8 sigma synthetic: gain 0.924 rms_rmse 0.069 onset_logerr 1.57 kurt_relerr 0.17 fold_err 1.06 pass 0.68
+   N=  5 onset  30.4/ 62.1  fold 4.36/2.11  kurt 10.86/10.61  rms 0.178/0.186
+   N= 20 onset  26.6/140.2  fold 3.24/1.91  kurt  2.14/ 1.68  rms 0.325/0.344
+   N= 50 onset   8.1/ 66.5  fold 2.51/2.39  kurt  0.34/ 0.39  rms 0.421/0.431
+   N=100 onset   2.3/ 21.7  fold 2.11/2.66  kurt -0.47/ 0.22  rms 0.525/0.468
+e0.8 sigma recorded: gain 0.792 rms_rmse 0.116 onset_logerr 0.65 kurt_relerr 0.31 fold_err 0.96 pass 0.75
+   N=  5 onset  30.4/ 66.2  fold 4.36/2.41  kurt 10.86/ 8.06  rms 0.178/0.201
+   N= 20 onset  26.6/ 66.6  fold 3.24/2.07  kurt  2.14/ 1.11  rms 0.325/0.357
+   N= 50 onset   8.1/ 10.7  fold 2.51/2.43  kurt  0.34/ 0.40  rms 0.421/0.417
+   N=100 onset   2.3/  5.6  fold 2.11/2.77  kurt -0.47/ 0.46  rms 0.525/0.441
+
+[exited with code 0]

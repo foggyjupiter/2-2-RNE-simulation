@@ -40,11 +40,14 @@ ROW_FROM_META = ("mic_gain", "noise_gain", "noise_file", "drr", "ring_tau_s", "e
 
 
 def parse_axis(text: str) -> tuple[str, dict]:
-    """'acoustics.x=uniform:0.6:1.5' → ('acoustics.x', {'dist': 'uniform', 'low': 0.6, 'high': 1.5})."""
+    """'acoustics.x=uniform:0.6:1.5' → ('acoustics.x', {'dist': 'uniform', 'low': 0.6, 'high': 1.5});
+    'acoustics.y=choice:a,b' → ('acoustics.y', {'dist': 'choice', 'values': ['a', 'b']})."""
     key, rhs = text.split("=", 1)
-    dist, lo, hi = rhs.split(":")
     if not key.startswith("acoustics."):
         raise ValueError(f"only acoustic axes can be re-rendered, got {key}")
+    if rhs.startswith("choice:"):
+        return key, {"dist": "choice", "values": rhs[len("choice:"):].split(",")}
+    dist, lo, hi = rhs.split(":")
     return key, {"dist": dist, "low": float(lo), "high": float(hi)}
 
 
@@ -88,7 +91,7 @@ def rerender_run(src: str, run_id: str, render_params: list, axes: dict, fixed: 
         m = r.meta
         nr = dict(row)
         nr.update({f: m.get(f) for f in ROW_FROM_META})
-        nr.update({"direct_attack_s": ac.direct_attack_s, "rerender": tag,
+        nr.update({"direct_attack_s": ac.direct_attack_s, "impact_source": ac.impact_source, "rerender": tag,
                    "rms_original": row.get("rms"), "clip_fraction_original": row.get("clip_fraction")})
         rows.append(nr)
     rec = {"run_id": run_id, "elapsed_s": old.get("elapsed_s"), "rows": rows, "rerender": tag}

@@ -156,6 +156,7 @@ def run_job(job: Job, spec: dict, out: str) -> dict:
             "impact_gain_norm": m.get("impact_gain_norm", "mean"),
             "position_weighting": m.get("position_weighting", 0.0),
             "direct_attack_s": ac.direct_attack_s,
+            "impact_source": ac.impact_source,
             "clip_fraction": m["clip_fraction"], "rms": m["rms"],
             # ground-truth phase (spec 9.1)
             **{f"gt_{k_}": v for k_, v in phase.items()},

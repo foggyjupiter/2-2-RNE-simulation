@@ -108,3 +108,29 @@ def test_rerender_reproduces_and_adds_axes(tmp_path):
         by_render.setdefault(r["render"], set()).add(r["impact_gain_sigma"])
     assert all(len(v) == 1 for v in by_render.values())       # shared by both conditions
     assert len({next(iter(v)) for v in by_render.values()}) == 2  # independent per render
+
+
+def test_sweep_with_click_model_axis(tmp_path):
+    """A per-render choice between synthetic and recorded clicks runs end to end."""
+    import json
+
+    import yaml
+
+    from gransim.acoustics.assets import read_wav
+    from gransim.sweep.runner import run_sweep
+
+    sp = {"base": "configs/experiment_replica.yaml",
+          "overrides": {"contact": {"model": "hertz"}, "time": {"settle_time": 0.2, "record_time": 0.45},
+                        "acoustics": {"impact_gain_norm": "energy"}},
+          "seed": 5, "n_dynamics": 1, "renders_per_run": 6, "sampling": "random",
+          "axes": {"particles.count": {"dist": "int_uniform", "low": 6, "high": 8},
+                   "acoustics.impact_gain_sigma": {"dist": "uniform", "low": 0.0, "high": 1.5},
+                   "acoustics.impact_source": {"dist": "choice", "values": ["synthetic", "recorded"]}}}
+    (tmp_path / "spec.yaml").write_text(yaml.safe_dump(sp))
+    out = tmp_path / "out"
+    assert run_sweep(tmp_path / "spec.yaml", out, workers=1, progress=lambda m: None)["ok"] == 1
+    rows = [json.loads(x) for x in (out / "manifest.jsonl").read_text().splitlines()]
+    assert {r["impact_source"] for r in rows} == {"synthetic", "recorded"}
+    for r in rows:
+        _, x = read_wav(out / r["file_name"])
+        assert np.isfinite(x).all() and np.abs(x).max() > 0

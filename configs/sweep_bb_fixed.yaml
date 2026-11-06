@@ -9,6 +9,8 @@
 #   - shaker speed: the recordings run at 6.04-6.64 Hz for a nominal 6.2 Hz → 355-400 rpm
 #   - impact-to-impact radiation spread (log-normal σ 0-1.5, level-neutral): the recorded
 #     high-band envelope distribution is matched at σ ≈ 1.2
+#   - click model per clip: synthetic Hertz pulse or a real recorded BB click (library cut
+#     from first-study clips 1-5 of N = 5/10/15); real clicks cut the onset-count gap ~3×
 # Recording conditions (mic gain, DRR, noise) as in sweep_material.yaml.
 base: configs/experiment_replica.yaml
 overrides:
@@ -35,4 +37,5 @@ axes:
   acoustics.drr:              {dist: loguniform, low: 3.0, high: 12.0}
   acoustics.noise_gain:       {dist: uniform, low: 0.5, high: 1.5}
   acoustics.impact_gain_sigma: {dist: uniform, low: 0.0, high: 1.5}
+  acoustics.impact_source:    {dist: choice, values: [synthetic, recorded]}   # real BB clicks (assets/impacts)
 contrast_pairs: {}
