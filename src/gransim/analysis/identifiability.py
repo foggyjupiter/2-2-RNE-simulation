@@ -16,6 +16,8 @@ Reported:
     each material property from the sound alone
   * variance decomposition: share of each statistic's variance explained by N alone
     and by N + material
+  * Cramér-Rao bound on the N error with the material known vs unknown (the
+    theoretical cost of not knowing the material, for these statistics)
 """
 
 from __future__ import annotations
@@ -188,6 +190,79 @@ def predictability(rows: list[dict], X: np.ndarray, seed: int = 0) -> dict:
     return out
 
 
+def fisher_bound(rows: list[dict], X: np.ndarray, n_bins=((1, 20), (20, 50), (50, 80), (80, 101))) -> dict:
+    """Cramér-Rao lower bound on the N error from the summary statistics.
+
+    Model: statistics x = μ(N, material) + ε, ε ~ N(0, Σ). μ is fitted per statistic as a
+    quadratic polynomial in (log(1+N), log d, log ρ, e_pp, e_pw, μ_pp, μ_pw) with the N
+    interactions; Σ is the residual covariance. Fisher information I = Jᵀ Σ⁻¹ J with J the
+    Jacobian of μ at each clip's parameters. Then
+        material known:    σ_N ≥ 1 / sqrt(I_NN)
+        material unknown:  σ_N ≥ sqrt((I⁻¹)_NN)   (material = nuisance parameters)
+    The ratio is the information cost of not knowing the material, for these statistics.
+    A bound for this feature set, not for the raw audio; a learned model can do better
+    than these features but not better than its own input.
+    """
+    L = _transform(X)
+    N = np.array([r["N"] for r in rows], float)
+    keep = N > 0
+    L, N = L[keep], N[keep]
+    R = [r for r, k in zip(rows, keep) if k]
+    th = np.column_stack([np.log1p(N), np.log([r["particle_diameter_m"] for r in R]),
+                          np.log([r["particle_density"] for r in R]),
+                          [r["restitution_pp"] for r in R], [r["restitution_pw"] for r in R],
+                          [r["friction_pp"] for r in R], [r["friction_pw"] for r in R]])
+    mu_t, sd_t = th.mean(0), th.std(0)
+    Z = (th - mu_t) / sd_t
+    P = Z.shape[1]
+
+    def design(Z):
+        cols = [np.ones(len(Z))] + [Z[:, i] for i in range(P)] + [Z[:, i] ** 2 for i in range(P)] \
+            + [Z[:, 0] * Z[:, i] for i in range(1, P)]
+        return np.column_stack(cols)
+
+    def jac(Z):                                   # d design / d Z  → [n, n_cols, P]
+        n = len(Z)
+        J = np.zeros((n, 1 + 2 * P + (P - 1), P))
+        for i in range(P):
+            J[:, 1 + i, i] = 1.0
+            J[:, 1 + P + i, i] = 2 * Z[:, i]
+        for k, i in enumerate(range(1, P)):
+            J[:, 1 + 2 * P + k, 0] = Z[:, i]
+            J[:, 1 + 2 * P + k, i] = Z[:, 0]
+        return J
+
+    D = design(Z)
+    W, *_ = np.linalg.lstsq(D, L, rcond=None)             # [n_cols, n_stats]
+    res = L - D @ W
+    Sigma = np.cov(res.T) + 1e-9 * np.eye(L.shape[1])
+    Si = np.linalg.inv(Sigma)
+    Jd = jac(Z)                                           # [n, cols, P]
+    dN_dz0 = (1 + N) * sd_t[0]                            # dN / dz0 (z0 = standardised log(1+N))
+    known, unknown = [], []
+    for k in range(len(Z)):
+        Jx = (Jd[k].T @ W).T                               # [n_stats, P]: d stats / d z
+        I = Jx.T @ Si @ Jx
+        known.append(dN_dz0[k] / np.sqrt(max(I[0, 0], 1e-12)))
+        try:
+            unknown.append(dN_dz0[k] * np.sqrt(max(np.linalg.inv(I)[0, 0], 0.0)))
+        except np.linalg.LinAlgError:
+            unknown.append(np.inf)
+    known, unknown = np.array(known), np.array(unknown)
+    out = {"note": "Cramér-Rao bound on the N error (particles, 1 sigma) from the 13 summary "
+                   "statistics; quadratic mean model, residual covariance",
+           "fit_r2_per_stat": {k: float(1 - res[:, i].var() / L[:, i].var()) for i, k in enumerate(STAT_KEYS)},
+           "median_sigma_N_material_known": float(np.median(known)),
+           "median_sigma_N_material_unknown": float(np.median(unknown)),
+           "by_N": {}}
+    for lo, hi in n_bins:
+        m = (N >= lo) & (N < hi)
+        if m.any():
+            out["by_N"][f"{lo}-{hi - 1}"] = {"known": float(np.median(known[m])),
+                                            "unknown": float(np.median(unknown[m]))}
+    return out
+
+
 def run(out: str | Path, f_shake: float = 6.2, k: int = 5, workers: int = 4,
         max_clips: int | None = None) -> dict:
     """Load the sweep manifest, compute statistics, write identifiability.json + figure."""
@@ -199,6 +274,7 @@ def run(out: str | Path, f_shake: float = 6.2, k: int = 5, workers: int = 4,
     X = clip_stats(out, rows, f_shake, workers)
     rep = analyse(rows, X, k)
     rep["predictability"] = predictability(rows, X)
+    rep["fisher_bound"] = fisher_bound(rows, X)
     (out / "identifiability.json").write_text(json.dumps(rep, indent=1))
     _plot(out, rows, X, k)
     return rep

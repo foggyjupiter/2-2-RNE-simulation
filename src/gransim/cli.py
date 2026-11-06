@@ -226,6 +226,10 @@ def cmd_identifiability(args: argparse.Namespace) -> None:
           f"known {pr['N_mae_material_known']:.1f}, mean guess {pr['N_mean_guess_mae']:.1f}")
     for k, v in pr["properties"].items():
         print(f"  {k:15s} from sound: MAE {v['mae']:.3g} (mean guess {v['mean_guess_mae']:.3g}), R² {v['r2']:.2f}")
+    fb = rep["fisher_bound"]
+    print(f"Cramér-Rao bound on N (1σ, median): material known {fb['median_sigma_N_material_known']:.1f}, "
+          f"unknown {fb['median_sigma_N_material_unknown']:.1f}  by N: " +
+          ", ".join(f"{k}: {v['known']:.1f}/{v['unknown']:.1f}" for k, v in fb["by_N"].items()))
     print(f"wrote {Path(args.out) / 'identifiability.json'} and identifiability.png")
 
 
