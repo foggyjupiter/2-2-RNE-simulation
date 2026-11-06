@@ -1,0 +1,5 @@
+# Real-stiffness reference (Hertz contact, real Young's moduli). Several minutes for N=300.
+particles: {count: 300}
+contact: {model: hertz, modulus_scale: 1.0}
+excitation: {mode: fixed_amplitude, amplitude: 0.0134, frequency: 11.0}
+time: {settle_time: 0.5, discard_time: 1.0, record_time: 5.0}

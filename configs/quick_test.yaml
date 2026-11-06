@@ -1,0 +1,5 @@
+# Fast smoke test (a few seconds).
+particles: {count: 50}
+excitation: {mode: fixed_amplitude, amplitude: 0.0134, frequency: 8.0}
+time: {settle_time: 0.2, discard_time: 0.2, record_time: 0.5}
+output: {save_trajectory: true, trajectory_interval: 0.005}
