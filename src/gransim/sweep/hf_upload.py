@@ -1,7 +1,8 @@
 """Incremental upload of a sweep folder to a Hugging Face dataset repo.
 
 Uploads finished runs only (those with ``runs/<id>/done.json``): their wav clips and
-the files needed to re-render them (events, wall force, config snapshot, summary),
+the files needed to re-render them (events, wall force, config snapshot, summary) plus
+the done marker (so a new machine can download the folder and resume the sweep),
 plus ``metadata.csv`` / ``manifest.jsonl`` at the root (``metadata.csv`` makes the
 repo loadable with ``datasets.load_dataset("audiofolder", ...)``). Already uploaded
 paths are tracked in ``<out>/.hf_uploaded.txt``; a commit whose response was lost
@@ -17,7 +18,7 @@ import json
 import time
 from pathlib import Path
 
-RUN_FILES = ("config_snapshot.yaml", "events.npz", "wall_force.npz", "summary.json")
+RUN_FILES = ("config_snapshot.yaml", "events.npz", "wall_force.npz", "summary.json", "done.json")
 
 
 def _pending(out: Path, done_set: set[str]) -> list[str]:

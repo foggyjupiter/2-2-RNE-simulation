@@ -82,6 +82,18 @@ class ParticleConfig(_Strict):
     init: Literal["random", "lattice"] = Field(
         "random", description="Initial placement before settling: random sequential addition "
                               "(disordered packing) or jittered lattice")
+    density_kg_m3: Optional[float] = Field(
+        None, gt=0, description="If set, the particle mass is derived from it and the diameter "
+                                "(mass = ρ π d³ / 6), overriding `mass`. Used by sweeps that "
+                                "vary diameter and material density independently")
+
+    @model_validator(mode="after")
+    def _mass_from_density(self) -> "ParticleConfig":
+        if self.density_kg_m3 is not None:
+            m = self.density_kg_m3 * math.pi / 6.0 * self.diameter ** 3
+            if not math.isclose(self.mass, m, rel_tol=1e-12):
+                self.__dict__["mass"] = m  # bypass validate_assignment recursion
+        return self
 
     @property
     def density(self) -> float:
