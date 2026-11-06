@@ -77,7 +77,7 @@ def upload(out: str | Path, repo_id: str, batch: int = 800, max_retries: int = 4
     return n
 
 
-def fetch_remote(out: str | Path, repo_id: str, prefix: str, log=print) -> int:
+def fetch_remote(out: str | Path, repo_id: str, prefix: str, log=print, audio: bool = True) -> int:
     """Merge step of a sharded sweep: download every shard's ``done.json`` and audio under
     ``prefix`` into ``out`` (layout of a local sweep, prefix stripped), mark them as
     uploaded, and rebuild the full manifest. Returns the number of rows."""
@@ -89,10 +89,11 @@ def fetch_remote(out: str | Path, repo_id: str, prefix: str, log=print) -> int:
     from gransim.sweep.runner import write_manifest
 
     out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
     prefix = prefix.rstrip("/") + "/"
     with tempfile.TemporaryDirectory(dir=out.parent if out.parent.exists() else None) as tmp:
-        snapshot_download(repo_id, repo_type="dataset", local_dir=tmp,
-                          allow_patterns=[f"{prefix}runs/*/done.json", f"{prefix}audio/**"])
+        pats = [f"{prefix}runs/*/done.json"] + ([f"{prefix}audio/**"] if audio else [])
+        snapshot_download(repo_id, repo_type="dataset", local_dir=tmp, allow_patterns=pats)
         src = Path(tmp) / prefix
         got = []
         for p in sorted(src.rglob("*")):

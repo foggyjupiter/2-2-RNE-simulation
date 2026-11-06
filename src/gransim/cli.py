@@ -227,11 +227,12 @@ def cmd_upload(args: argparse.Namespace) -> None:
     if args.card:
         extra["README.md"] = args.card
     prefix = (args.prefix.rstrip("/") + "/") if args.prefix else ""
-    if args.fetch:
+    fetch = args.fetch or args.fetch_meta
+    if fetch:
         from gransim.sweep.hf_upload import fetch_remote
-        fetch_remote(args.out, args.repo, prefix)
+        fetch_remote(args.out, args.repo, prefix, audio=not args.fetch_meta)
     n = upload(args.out, args.repo, extra_files=extra, prefix=prefix,
-               manifest=not args.no_manifest, manifest_only=args.manifest_only or args.fetch)
+               manifest=not args.no_manifest, manifest_only=args.manifest_only or fetch)
     print(f"{n} files uploaded")
 
 
@@ -371,6 +372,8 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--fetch", action="store_true",
                    help="merge a sharded sweep: download all shards' done.json + audio under "
                         "--prefix into OUT, rebuild and upload the full manifest")
+    p.add_argument("--fetch-meta", action="store_true",
+                   help="like --fetch but only the done.json files (manifest without the audio)")
     p.set_defaults(func=cmd_upload)
 
     p = sub.add_parser("rerender", help="re-render a sweep's audio with other acoustic settings")
