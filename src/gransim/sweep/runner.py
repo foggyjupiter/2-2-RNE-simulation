@@ -51,6 +51,22 @@ def _split_for(job: Job, spec: dict, rng: np.random.Generator) -> str:
     return "train" if u < 0.8 else ("val" if u < 0.9 else "test")
 
 
+def _nominal(job: Job, spec: dict, cfg) -> dict:
+    """Nominal condition of a multi-condition job (what the experimenter sets); for an
+    excitation-speed condition also the nominal rpm and Γ (the simulated ones carry the
+    jitter). Empty for single-condition sweeps."""
+    if job.condition_value is None:
+        return {}
+    key = (spec.get("conditions") or {}).get("key", "")
+    out = {"condition_value": job.condition_value}
+    if key in ("excitation.rpm", "excitation.frequency"):
+        rpm = job.condition_value if key == "excitation.rpm" else 60.0 * job.condition_value
+        ex = cfg.excitation.model_copy(update={"rpm": rpm, "frequency": None})
+        _, _, g_nom = ex.resolved(cfg.gravity)
+        out.update({"rpm_nominal": rpm, "gamma_nominal": g_nom})
+    return out
+
+
 def run_job(job: Job, spec: dict, out: str) -> dict:
     """Run one dynamics job and its renders. Returns {'run_id', 'rows'} or raises."""
     from gransim.acoustics.assets import write_wav
@@ -118,6 +134,7 @@ def run_job(job: Job, spec: dict, out: str) -> dict:
             "rotation": cfg.contact.rotation, "wall_roughness_deg": cfg.contact.wall_roughness_deg,
             # excitation
             "amplitude_m": A, "frequency_hz": f, "rpm": 60 * f, "gamma": gam,
+            **_nominal(job, spec, cfg),
             "excitation_mode": cfg.excitation.mode,
             # dynamics
             "contact_model": cfg.contact.model, "stiffness_mode": cfg.contact.stiffness_mode,
@@ -136,6 +153,7 @@ def run_job(job: Job, spec: dict, out: str) -> dict:
             "tau_c_median_s": m["tau_c_median_s"], "band_split_hz": m["band_split_hz"],
             "highpass_hz": m["highpass_hz"], "pp_gain": m["pp_gain"],
             "impact_gain_sigma": m.get("impact_gain_sigma", 0.0),
+            "impact_gain_norm": m.get("impact_gain_norm", "mean"),
             "position_weighting": m.get("position_weighting", 0.0),
             "direct_attack_s": ac.direct_attack_s,
             "clip_fraction": m["clip_fraction"], "rms": m["rms"],

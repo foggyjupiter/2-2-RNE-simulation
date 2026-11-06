@@ -36,7 +36,7 @@ SALT = 0x2E2E  # separates the new-axis draws from every other use of the render
 # acoustic row fields refreshed from the new render's metadata
 ROW_FROM_META = ("mic_gain", "noise_gain", "noise_file", "drr", "ring_tau_s", "eq", "pulse_shape",
                  "tau_mode", "tau_c_median_s", "band_split_hz", "highpass_hz", "pp_gain",
-                 "clip_fraction", "rms", "impact_gain_sigma", "position_weighting")
+                 "clip_fraction", "rms", "impact_gain_sigma", "impact_gain_norm", "position_weighting")
 
 
 def parse_axis(text: str) -> tuple[str, dict]:

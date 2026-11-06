@@ -77,6 +77,7 @@ class Job:
     condition_index: int = 0
     render_seeds: list = field(default_factory=list)
     split_seed: int | None = None
+    condition_value: float | None = None   # nominal condition (what the experimenter sets)
 
 
 def build_jobs(spec: dict) -> list[Job]:
@@ -119,22 +120,33 @@ def build_jobs(spec: dict) -> list[Job]:
 
 
 def expand_conditions(jobs: list[Job], spec: dict) -> list[Job]:
-    """Multi-condition sweeps (spec 'conditions': {key, values}): each sampled system is
-    run once per value. Draws nothing from the sampling RNG, so specs without
-    'conditions' produce exactly the same jobs as before."""
+    """Multi-condition sweeps (spec 'conditions': {key, values[, jitter]}): each sampled
+    system is run once per value. Draws nothing from the sampling RNG, so specs without
+    'conditions' produce exactly the same jobs as before.
+
+    ``jitter`` (relative, e.g. 0.04): the value actually simulated is the nominal one
+    times (1 + U(−jitter, jitter)), drawn per job — a real shaker set to a nominal speed
+    runs a few per cent off (first study: 6.04–6.64 Hz at a nominal 6.2 Hz). The nominal
+    value is kept in ``Job.condition_value``."""
     cond = spec.get("conditions")
     if not cond:
         return jobs
     key, values = cond["key"], list(cond["values"])
+    jit = float(cond.get("jitter", 0.0))
     out = []
     for j in jobs:
         rs = [int(np.random.default_rng([j.seed, 7, k]).integers(1 << 31))
               for k in range(len(j.render_params))]
         for c, v in enumerate(values):
-            out.append(Job(f"{j.run_id}_c{c}", {**j.params, key: v},
+            va = v
+            if jit > 0:
+                u = float(np.random.default_rng([j.seed, 13, c]).random())
+                va = float(v) * (1.0 + jit * (2.0 * u - 1.0))
+            out.append(Job(f"{j.run_id}_c{c}", {**j.params, key: va},
                            int(np.random.default_rng([j.seed, 11, c]).integers(1 << 31)),
                            j.pair_id, j.pair_type, j.render_params, system_id=j.run_id,
-                           condition_index=c, render_seeds=rs, split_seed=j.seed))
+                           condition_index=c, render_seeds=rs, split_seed=j.seed,
+                           condition_value=float(v)))
     return out
 
 

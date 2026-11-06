@@ -46,6 +46,19 @@ def test_multi_condition_systems_share_everything_but_the_condition():
         assert len({j.seed for j in group}) == len(vals)  # independent dynamics
 
 
+def test_condition_jitter_keeps_nominal_value():
+    vals = [300, 372, 450]
+    plain = build_jobs(spec(conditions={"key": "excitation.rpm", "values": vals}))
+    jit = build_jobs(spec(conditions={"key": "excitation.rpm", "values": vals, "jitter": 0.04}))
+    assert [j.seed for j in plain] == [j.seed for j in jit]           # nothing else changes
+    for a, b in zip(plain, jit):
+        assert b.condition_value == a.params["excitation.rpm"]
+        assert abs(b.params["excitation.rpm"] / b.condition_value - 1) <= 0.04
+        assert {k: v for k, v in a.params.items() if k != "excitation.rpm"} == \
+               {k: v for k, v in b.params.items() if k != "excitation.rpm"}
+    assert len({round(j.params["excitation.rpm"] / j.condition_value, 6) for j in jit}) > 5
+
+
 def test_noise_is_rescaled_to_other_rpm():
     from gransim.acoustics.noise import draw_noise
     ac = AcousticConfig()

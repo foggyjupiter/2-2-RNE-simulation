@@ -9,7 +9,8 @@ at least ``min_tol`` relative). Features:
   centroid_hz                       spectral centroid
   onset_rate                        detected impact onsets per second (> 12 kHz band)
   kurtosis (ψ3), entropy (ψ2)       first-study order parameters
-  fold_peak_to_mean                 peakiness of the period-folded energy (phase-free)
+  fold_peak_to_mean                 peakiness of the period-folded energy (phase-free),
+                                    folded at the clip's own estimated shaking frequency
   fold_shape_corr                   correlation of the folded profile with the mean
                                     recorded profile (best circular shift)
 """
@@ -20,13 +21,16 @@ import numpy as np
 from scipy import signal
 
 from gransim.acoustics.assets import detect_onsets
-from gransim.analysis.order_params import folded_energy, psi2, psi3
+from gransim.analysis.order_params import estimate_shake_frequency, folded_energy, psi2, psi3
 
 BANDS = [(125, 500), (500, 2000), (2000, 4000), (4000, 8000), (8000, 12000), (12000, 16000),
          (16000, 24000)]
 
 
-def features(y: np.ndarray, fs: int, f_shake: float, clip_level: float = 0.99) -> dict:
+def features(y: np.ndarray, fs: int, f_shake: float, clip_level: float = 0.99,
+             estimate_f: bool = True) -> dict:
+    """Clip statistics. The period-folded profile uses the clip's own shaking frequency
+    (estimated within ±12 % of ``f_shake``) unless estimate_f is False."""
     f, P = signal.welch(y, fs, nperseg=4096)
     tot = P.sum()
     out = {"rms": float(np.sqrt(np.mean(y ** 2))),
@@ -39,7 +43,9 @@ def features(y: np.ndarray, fs: int, f_shake: float, clip_level: float = 0.99) -
     out["onset_rate"] = len(ons) / (len(y) / fs)
     out["kurtosis"] = psi3(y)
     out["entropy_psi2"] = psi2(y)
-    prof = folded_energy(y, fs, f_shake, 64)
+    f_est = estimate_shake_frequency(y, fs, f_shake) if estimate_f else float(f_shake)
+    out["f_shake_est"] = f_est
+    prof = folded_energy(y, fs, f_est, 64)
     out["fold_peak_to_mean"] = float(prof.max() / prof.mean())
     out["_fold"] = prof / prof.mean()
     return out
@@ -54,7 +60,7 @@ def compare(real: list[dict], sim: list[dict], k: float = 2.0, min_tol: float = 
     ref_fold = np.mean([r["_fold"] for r in real], axis=0)
     for d in real + sim:
         d["fold_shape_corr"] = best_shift_corr(d["_fold"], ref_fold)
-    keys = [k_ for k_ in real[0] if not k_.startswith("_")]
+    keys = [k_ for k_ in real[0] if not k_.startswith("_") and k_ != "f_shake_est"]
     rows = []
     for key in keys:
         rv = np.array([r[key] for r in real])

@@ -67,7 +67,8 @@ def radiation_weights(imp: np.ndarray, cfg: SimConfig, seed: int) -> np.ndarray:
                 w[m] = shape ** p / mean_sin_p ** 2
     if ac.impact_gain_sigma > 0:
         s = ac.impact_gain_sigma
-        w *= np.exp(np.random.default_rng([seed, 991]).standard_normal(len(imp)) * s - 0.5 * s * s)
+        shift = s * s if ac.impact_gain_norm == "energy" else 0.5 * s * s
+        w *= np.exp(np.random.default_rng([seed, 991]).standard_normal(len(imp)) * s - shift)
     return w
 
 
@@ -120,7 +121,8 @@ def build_sources(events: np.ndarray, wall_force, cfg: SimConfig, t_start: float
         for ch in CHANNELS:
             out[ch] = split(out[ch], fs, ac.highpass_hz, "high")
     info = {"band_split_hz": fc, "highpass_hz": ac.highpass_hz,
-            "position_weighting": ac.position_weighting, "impact_gain_sigma": ac.impact_gain_sigma, "n_impacts": int((events["contact_type"] == 0).sum()) if len(events) else 0,
+            "position_weighting": ac.position_weighting, "impact_gain_sigma": ac.impact_gain_sigma,
+            "impact_gain_norm": ac.impact_gain_norm, "n_impacts": int((events["contact_type"] == 0).sum()) if len(events) else 0,
             "tau_c_median_s": float(np.median(tau)) if len(tau) else None,
             "tau_mode": ac.tau_mode, "pulse_shape": ac.pulse_shape, "pp_gain": ac.pp_gain}
     return out, info

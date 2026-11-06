@@ -276,9 +276,14 @@ class AcousticConfig(_Strict):
                                "impacts near the middle of a wall radiate more than near its edges. "
                                "0 = off")
     impact_gain_sigma: float = Field(
-        0.0, ge=0, description="Log-normal σ of a per-impact radiation efficiency (mean 1): "
-                               "stands for unmodelled impact-to-impact variation (angle, spin, "
-                               "local wall stiffness). 0 = off")
+        0.0, ge=0, description="Log-normal σ of a per-impact radiation efficiency: stands for "
+                               "unmodelled impact-to-impact variation (angle, spin, local wall "
+                               "stiffness). 0 = off")
+    impact_gain_norm: Literal["mean", "energy"] = Field(
+        "mean", description="Normalisation of the per-impact factor: mean = unit mean amplitude "
+                            "(radiated energy grows by e^(σ²)); energy = unit mean square, so σ "
+                            "changes only how the impact energy is distributed, not the level "
+                            "(keeps σ and the microphone gain independent when both are randomised)")
     response: Literal["measured", "synthetic"] = Field(
         "measured", description="measured = statistical model from first-study recordings "
                                 "(assets/impulse_response/response_model.npz); synthetic = modes")
