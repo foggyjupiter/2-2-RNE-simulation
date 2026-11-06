@@ -13,6 +13,7 @@ estimated shaking frequency.
 | egrid_lowe.json | e = 0.5, 0.65; wall relief 0.3°, 0.7°; Γ = 3 |
 | egrid_split.json | e_pp 0.95 with e_pw 0.8 / 0.7; e 0.8 relief 0.3° |
 | egrid_visco.json | viscoelastic law e(0.5 m/s) = 0.9 / 0.7; split 0.95 / 0.7 with σ 0, 0.6, 1.2 (energy-normalised) |
+| egrid_crank.json | crank-slider drive λ 0.15 / 0.3 with split 0.95 / 0.7, σ 0 / 0.6 |
 | radiation_grid.json | DRR 3/6 × position weighting 0/1/2 × σ 0/0.7/1.2 (e = 0.8; older fold metric) |
 | attack_grid.json | DRR 3/6 × direct-sound attack 0-0.4 ms, σ 1.2 (older fold metric) |
 
