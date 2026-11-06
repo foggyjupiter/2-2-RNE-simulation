@@ -13,6 +13,10 @@ except acoustic keys listed in ``blind_axes`` (material properties such as the t
 modulus), which belong to the run.
 Contrast pairs (spec 8.1): (a) same N, different material; (b) same material,
 different N. A pair's two runs share a ``pair_id``.
+
+Multi-condition sweeps (``conditions: {key: excitation.rpm, values: [...]}``): every
+sampled system is simulated under each condition (same N, material, nuisance and
+recording setup); its jobs share a ``system_id`` and always land in the same split.
 """
 
 from __future__ import annotations
@@ -66,6 +70,13 @@ class Job:
     pair_id: str = ""
     pair_type: str = ""               # "", "same_N", "same_material"
     render_params: list = field(default_factory=list)  # one dict per render (acoustics.* keys)
+    # multi-condition sweeps: one *system* (N, material, recording setup) observed under
+    # several excitation conditions; all its jobs share system_id, render settings, render
+    # seeds (same responses / noise choice) and split
+    system_id: str = ""
+    condition_index: int = 0
+    render_seeds: list = field(default_factory=list)
+    split_seed: int | None = None
 
 
 def build_jobs(spec: dict) -> list[Job]:
@@ -104,7 +115,27 @@ def build_jobs(spec: dict) -> list[Job]:
         for side, p in (("a", a), ("b", b)):
             jobs.append(Job(f"pM{k:04d}{side}", p, int(rng.integers(1 << 31)), f"pM{k:04d}",
                             "same_material", renders()))
-    return jobs
+    return expand_conditions(jobs, spec)
+
+
+def expand_conditions(jobs: list[Job], spec: dict) -> list[Job]:
+    """Multi-condition sweeps (spec 'conditions': {key, values}): each sampled system is
+    run once per value. Draws nothing from the sampling RNG, so specs without
+    'conditions' produce exactly the same jobs as before."""
+    cond = spec.get("conditions")
+    if not cond:
+        return jobs
+    key, values = cond["key"], list(cond["values"])
+    out = []
+    for j in jobs:
+        rs = [int(np.random.default_rng([j.seed, 7, k]).integers(1 << 31))
+              for k in range(len(j.render_params))]
+        for c, v in enumerate(values):
+            out.append(Job(f"{j.run_id}_c{c}", {**j.params, key: v},
+                           int(np.random.default_rng([j.seed, 11, c]).integers(1 << 31)),
+                           j.pair_id, j.pair_type, j.render_params, system_id=j.run_id,
+                           condition_index=c, render_seeds=rs, split_seed=j.seed))
+    return out
 
 
 def nested(dotted: dict) -> dict:

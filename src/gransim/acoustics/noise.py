@@ -1,7 +1,8 @@
 """Background (motor) noise (spec 6.1, step 3).
 
 The library holds recordings of the empty box shaken at a given rpm, taken at the
-microphone position. The file with the nearest rpm is used. There is no phase
+microphone position. The file with the nearest rpm is used; if it is more than 3 % off,
+it is resampled by rpm_file / rpm so the rotation harmonics follow the requested rpm. There is no phase
 reference in the recordings, so the start point is random (recorded in the metadata).
 Without a library, a synthetic noise (pink-ish broadband + rotation harmonics) is used.
 """
@@ -37,11 +38,19 @@ def draw_noise(cfg: AcousticConfig, rpm: float, n: int, rng: np.random.Generator
         fs, x = read_wav(d / f["file"])
         if fs != cfg.fs:
             x = signal.resample_poly(x, cfg.fs, fs)
+        scaled = abs(f["rpm"] - rpm) / rpm > 0.03
+        if scaled:
+            # no recording at this rpm: play the nearest one faster/slower so the rotation
+            # harmonics move with the rpm (approximation; record the real one when possible)
+            from fractions import Fraction
+            r = Fraction(f["rpm"] / rpm).limit_denominator(200)
+            x = signal.resample_poly(x, r.numerator, r.denominator)
         start = int(rng.integers(len(x)))
         reps = int(np.ceil((start + n) / len(x)))
         y = np.tile(x, reps + 1)[start:start + n]
         return y, {"noise_file": f["file"], "noise_rpm": f["rpm"], "noise_rpm_mismatch":
-                   abs(f["rpm"] - rpm) / rpm, "noise_start": start, "noise_phase_aligned": False}
+                   abs(f["rpm"] - rpm) / rpm, "noise_rpm_scaled": scaled, "noise_start": start,
+                   "noise_phase_aligned": False}
     # synthetic fallback: −3 dB/oct noise at the measured empty-box level + rotation harmonics
     w = np.fft.rfft(rng.standard_normal(n))
     fr = np.fft.rfftfreq(n, 1 / cfg.fs)

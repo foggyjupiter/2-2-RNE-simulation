@@ -88,17 +88,23 @@ def run_job(job: Job, spec: dict, out: str) -> dict:
     shard = f"shard{int(job.run_id[1:6]) // SHARD_SIZE if job.run_id[1:6].isdigit() else 'P'}"
     adir = out / "audio" / shard
     adir.mkdir(parents=True, exist_ok=True)
-    rng = np.random.default_rng(job.seed ^ 0x5EED)
-    split = _split_for(job, spec, rng)
+    if job.system_id:   # multi-condition: split and render seeds shared by the system
+        split = _split_for(job, spec, np.random.default_rng(job.split_seed ^ 0x5EED))
+        seeds = list(job.render_seeds)
+    else:               # single condition (unchanged behaviour of earlier sweeps)
+        rng = np.random.default_rng(job.seed ^ 0x5EED)
+        split = _split_for(job, spec, rng)
+        seeds = [int(rng.integers(1 << 31)) for _ in job.render_params]
     for k, rp in enumerate(job.render_params):
         ac_data = deep_merge(cfg.acoustics.model_dump(), nested(rp).get("acoustics", {}))
         ac = AcousticConfig.model_validate(ac_data)
-        r = render(cfg, res.events, res.wall_force, win, seed=int(rng.integers(1 << 31)), acoustics=ac)
+        r = render(cfg, res.events, res.wall_force, win, seed=seeds[k], acoustics=ac)
         name = f"{job.run_id}_k{k}.wav"
         write_wav(adir / name, r.fs, r.audio, bits=ac.bits)
         m = r.meta
         rows.append({
             "file_name": f"audio/{shard}/{name}", "run_id": job.run_id, "render": k,
+            "system_id": job.system_id or job.run_id, "condition_index": job.condition_index,
             "N": cfg.particles.count, "split": split,
             "pair_id": job.pair_id, "pair_type": job.pair_type,
             # material (blind axes) and all physical parameters
@@ -124,6 +130,7 @@ def run_job(job: Job, spec: dict, out: str) -> dict:
             "fs": m["fs"], "duration_s": m["duration_s"], "render_seed": m["render_seed"],
             "mic_gain": m["mic_gain"], "noise_gain": m["noise_gain"], "noise_file": m["noise_file"],
             "noise_start": m.get("noise_start"), "noise_phase_aligned": m.get("noise_phase_aligned"),
+            "noise_rpm_scaled": m.get("noise_rpm_scaled", False),
             "drr": m["drr"], "ring_tau_s": m["ring_tau_s"], "eq": m["eq"],
             "pulse_shape": m["pulse_shape"], "tau_mode": m["tau_mode"],
             "tau_c_median_s": m["tau_c_median_s"], "band_split_hz": m["band_split_hz"],
@@ -201,7 +208,11 @@ def write_manifest(out: str | Path) -> int:
         rows += json.loads(d.read_text())["rows"]
     if not rows:
         return 0
-    keys = list(rows[0])
+    for r in rows:                       # rows written before these columns existed
+        r.setdefault("system_id", r["run_id"])
+        r.setdefault("condition_index", 0)
+        r.setdefault("noise_rpm_scaled", False)
+    keys = list(dict.fromkeys(k for r in rows for k in r))
     with open(out / "manifest.jsonl", "w", encoding="utf-8") as fh:
         for r in rows:
             fh.write(json.dumps(r, default=float) + "\n")

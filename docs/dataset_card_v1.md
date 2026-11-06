@@ -24,6 +24,7 @@ pretty_name: RNE granular acoustics v1 (blind count estimation)
 | `manifest.jsonl` | 같은 내용 JSONL |
 | `runs/<run_id>/` | 재합성용 동역학 출력: `events.npz`, `wall_force.npz`, `config_snapshot.yaml`, `summary.json` |
 | `sweep_spec.yaml` | 생성에 쓴 스윕 명세 |
+| `multi_rpm/` | **다중 조건 데이터셋 (v2)**: 시스템(N, 물성, 녹음 조건) 440개를 각각 5개 rpm (300/372/450/550/650, Γ ≈ 1.35~6.3)에서 관측. 같은 시스템의 클립은 `system_id`로 묶이고 `condition_index`, `rpm`, `gamma`가 붙음. 같은 시스템은 항상 같은 분할. 372 이외 rpm의 모터 잡음은 372 rpm 녹음을 rpm 비율로 재생 속도를 바꿔 만든 근사 (`noise_rpm_scaled`) |
 | `bb_fixed/` | **물질 고정 동반 데이터셋** (1차 연구 BB: 6 mm, 0.12 g, e = 0.8, μ = 0.3; N만 변함, 300회 × 4클립). 같은 구조(`metadata.csv`, `audio/`, `runs/`). "물질을 안다고 가정한" 비교 모델 학습과 실측 BB 녹음 비교용 |
 
 ## 라벨과 변수
@@ -47,7 +48,7 @@ pretty_name: RNE granular acoustics v1 (blind count estimation)
 | `test_ood` | **학습에 없는 물성 영역**: 밀도 2800~4000 kg/m³ 이면서 입자-벽 반발계수 0.55~0.68. 처음 보는 물질에 대한 일반화 평가용 |
 | `pairs` | 대조 쌍 (`pair_type` = `same_N`: 같은 N·다른 물성 / `same_material`: 같은 물성·다른 N, `pair_id`로 묶임) |
 
-⚠️ 같은 `run_id`에서 나온 클립은 독립이 아닙니다. 학습/평가를 나눌 때 반드시 `run_id`(또는 `split`) 단위로 나누세요.
+⚠️ 같은 `run_id`에서 나온 클립은 독립이 아닙니다. 다중 조건 데이터셋에서는 같은 `system_id`도 마찬가지입니다. 학습/평가를 나눌 때 반드시 `run_id`(또는 `split`) 단위로 나누세요.
 
 ## 물리·음향 모델 요약
 
