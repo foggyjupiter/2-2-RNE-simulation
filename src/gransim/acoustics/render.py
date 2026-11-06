@@ -9,6 +9,7 @@ so the audio can be re-rendered with other acoustic settings in seconds.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -42,6 +43,51 @@ def load_run(run_dir: str | Path):
     return cfg, ev, wf, win
 
 
+@lru_cache(maxsize=4)
+def load_click_library(path: str | None) -> dict:
+    p = Path(path) if path else Path(__file__).resolve().parents[3] / "assets" / "impacts" / "clicks_bb.npz"
+    if not p.exists():
+        raise FileNotFoundError(f"click library {p} not found; build it with `gransim build-clicks`")
+    with np.load(p) as z:
+        return {"clips": z["clips"].astype(np.float64), "fs": int(z["fs"]), "pre": int(z["pre"]),
+                "path": str(p)}
+
+
+def replace_direct_with_clicks(wet: dict, impacts: dict, direct: dict, ac: AcousticConfig,
+                               seed: int, t0: float, n_tot: int) -> dict:
+    """impact_source = recorded: in each channel, swap the impacts' synthetic direct sound
+    (pulse ⊛ direct part of the response) for real clicks at the same times, each scaled by
+    the impact's weight; one factor per run gives the clicks the synthetic direct energy
+    (level-neutral). The reverberant tail of every impact stays as synthesised."""
+    if direct is None or not direct:
+        raise ValueError("impact_source=recorded needs the measured response model")
+    lib = load_click_library(ac.click_library)
+    if lib["fs"] != ac.fs:
+        raise ValueError(f"click library at {lib['fs']} Hz, rendering at {ac.fs} Hz")
+    C, pre = lib["clips"], lib["pre"]
+    L = C.shape[1]
+    crng = np.random.default_rng([seed, 4242])
+    syn, rec = {}, {}
+    for c, d in impacts.items():
+        syn[c] = apply_response(d["signal"], direct[c])
+        y = np.zeros(n_tot)
+        if len(d["t"]):
+            k = crng.integers(len(C), size=len(d["t"]))
+            start = np.round((np.asarray(d["t"]) - t0) * ac.fs).astype(np.int64) - pre
+            pos = start[:, None] + np.arange(L)[None, :]
+            val = np.asarray(d["w"])[:, None] * C[k]
+            ok = (pos >= 0) & (pos < n_tot)
+            y = np.bincount(pos[ok], weights=val[ok], minlength=n_tot)[:n_tot]
+        rec[c] = y
+    e_syn = sum(float(np.sum(v * v)) for v in syn.values())
+    e_rec = sum(float(np.sum(v * v)) for v in rec.values())
+    kappa = float(np.sqrt(e_syn / e_rec)) if e_rec > 0 else 0.0
+    for c in impacts:
+        wet[c] = wet[c] - syn[c] + kappa * rec[c]
+    return {"impact_source": "recorded", "click_library": lib["path"], "click_scale": kappa,
+            "n_clicks_library": int(len(C))}
+
+
 def render(cfg: SimConfig, events: np.ndarray, wall_force, record_window: tuple,
            seed: int = 0, acoustics: Optional[AcousticConfig] = None,
            keep_components: bool = False) -> Rendered:
@@ -61,9 +107,13 @@ def render(cfg: SimConfig, events: np.ndarray, wall_force, record_window: tuple,
     n_tot = int(round((ac.warmup_s + dur) * fs))
     n_out = int(round(dur * fs))
 
-    src, src_info = build_sources(events, wall_force, cfg, t0_rec, n_tot, seed)
-    irs, ir_info = draw_responses(ac, list(CHANNELS), rng)
+    impacts = {} if ac.impact_source == "recorded" else None
+    src, src_info = build_sources(events, wall_force, cfg, t0_rec, n_tot, seed, impacts=impacts)
+    direct = {} if impacts is not None else None
+    irs, ir_info = draw_responses(ac, list(CHANNELS), rng, direct_parts=direct)
     wet = {c: apply_response(src[c], irs[c]) for c in CHANNELS}
+    if impacts is not None:
+        src_info.update(replace_direct_with_clicks(wet, impacts, direct, ac, seed, t0_rec, n_tot))
     clean = ac.mic_gain * sum(wet[c] for c in CHANNELS)[n_tot - n_out:]
 
     A, f, gam = cfg.excitation.resolved(cfg.gravity)

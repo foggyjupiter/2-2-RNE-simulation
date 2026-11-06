@@ -181,6 +181,62 @@ def measure_response(clips: list[str], tau_ref: float, clip_level: float = 0.98,
             "n_direct": len(direct_segs), "n_tail": len(tail_segs), "tau_ref": tau_ref}
 
 
+def build_click_library(clips: list[str], out: str | Path, pre_s: float = 3e-4, win_s: float = 3e-3,
+                        fade_s: float = 1e-3, iso_before_s: float = 0.02, iso_after_s: float = 0.005,
+                        highpass_hz: float = 1500.0, clip_level: float = 0.98,
+                        max_clicks: int = 600, seed: int = 0) -> dict:
+    """Library of real single-impact clicks for ``acoustics.impact_source = recorded``.
+
+    From recordings with isolated impacts (sparse first-study clips, or single-particle
+    drops): every detected onset with no other onset ``iso_before_s`` before /
+    ``iso_after_s`` after and no clipping is cut ``pre_s`` before to ``win_s`` after,
+    high-passed at ``highpass_hz`` (motor noise, wall-force band), faded out over the last
+    ``fade_s`` and scaled to unit energy. Each click is the real contact pulse heard
+    through the real direct path (box + room + phone) — the part the synthetic Hertz pulse
+    and measured direct spectrum stand for; the reverberant tail is added by the renderer.
+    """
+    pre, nwin, nfade = None, None, None
+    cut = []
+    srcs = []
+    fs0 = None
+    for c in clips:
+        fs, x = read_wav(c)
+        if fs0 is None:
+            fs0 = fs
+            pre, nwin, nfade = int(pre_s * fs), int(win_s * fs), int(fade_s * fs)
+            sos = signal.butter(4, highpass_hz / (fs / 2), "high", output="sos")
+        elif fs != fs0:
+            raise ValueError(f"{c}: {fs} Hz, library is {fs0} Hz")
+        y = signal.sosfiltfilt(sos, x)
+        ons, _ = detect_onsets(x, fs)
+        for k, o in enumerate(ons):
+            if o - pre < 0 or o + nwin > len(x):
+                continue
+            if k > 0 and o - ons[k - 1] < iso_before_s * fs:
+                continue
+            if k + 1 < len(ons) and ons[k + 1] - o < iso_after_s * fs:
+                continue
+            if np.max(np.abs(x[o - pre:o + nwin])) > clip_level:
+                continue
+            seg = y[o - pre:o + nwin].copy()
+            seg[-nfade:] *= 0.5 * (1 + np.cos(np.linspace(0, np.pi, nfade)))
+            e = np.sqrt(np.sum(seg ** 2))
+            if e > 0:
+                cut.append(seg / e)
+                srcs.append(Path(c).name)
+    if not cut:
+        raise ValueError("no isolated, unclipped impacts found")
+    rng = np.random.default_rng(seed)
+    idx = rng.permutation(len(cut))[:max_clicks]
+    C = np.stack([cut[i] for i in idx]).astype(np.float32)
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(out, clips=C, fs=int(fs0), pre=int(pre), sources=np.array([srcs[i] for i in idx]),
+             highpass_hz=highpass_hz)
+    return {"file": str(out), "n_clicks": int(len(C)), "n_found": len(cut), "fs": int(fs0),
+            "length_ms": 1e3 * C.shape[1] / fs0, "from_files": len(set(srcs))}
+
+
 def build_assets(recordings: str | Path, out_root: str | Path, rpm: float, tau_ref: float,
                  sparse_count: int = 5, noise_count: int = 0, clip_s: float = 5.0) -> dict:
     """Write assets/noise/*.wav + index.yaml and assets/impulse_response/response_model.npz.

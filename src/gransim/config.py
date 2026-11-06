@@ -307,6 +307,16 @@ class AcousticConfig(_Strict):
                             "(radiated energy grows by e^(σ²)); energy = unit mean square, so σ "
                             "changes only how the impact energy is distributed, not the level "
                             "(keeps σ and the microphone gain independent when both are randomised)")
+    impact_source: Literal["synthetic", "recorded"] = Field(
+        "synthetic", description="synthetic: each impact's direct sound = Hertz pulse (real τ_c) "
+                                 "through the measured direct spectrum. recorded: a real click "
+                                 "drawn from click_library (cut from recordings), scaled by the "
+                                 "impact's impulse; the reverberant tail is still the measured "
+                                 "model. Level-neutral: per run, the recorded direct sound gets the "
+                                 "synthetic one's energy, so mic_gain calibration holds")
+    click_library: Optional[str] = Field(
+        None, description="recorded impact_source: .npz from `gransim build-clicks` "
+                          "(default assets/impacts/clicks_bb.npz)")
     response: Literal["measured", "synthetic"] = Field(
         "measured", description="measured = statistical model from first-study recordings "
                                 "(assets/impulse_response/response_model.npz); synthetic = modes")

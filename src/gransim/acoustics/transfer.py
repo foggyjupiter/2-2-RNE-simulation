@@ -53,6 +53,13 @@ def _unit(x: np.ndarray) -> np.ndarray:
 
 
 def measured_ir(model: dict, cfg: AcousticConfig, rng: np.random.Generator) -> np.ndarray:
+    d, r = measured_ir_parts(model, cfg, rng)
+    return d + r
+
+
+def measured_ir_parts(model: dict, cfg: AcousticConfig,
+                      rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """(direct part, reverberant part) of a measured-model response; they sum to h."""
     fs = cfg.fs
     n = int(cfg.ir_length_s * fs)
     t = np.arange(n) / fs
@@ -66,7 +73,7 @@ def measured_ir(model: dict, cfg: AcousticConfig, rng: np.random.Generator) -> n
     r = _shaped_noise(f, model["tail_psd"], n, fs, rng) * np.exp(-t / tau)
     ramp = int(0.0005 * fs)
     r[:ramp] *= np.linspace(0.0, 1.0, ramp)
-    return np.sqrt(drr / (1 + drr)) * _unit(d) + np.sqrt(1 / (1 + drr)) * _unit(r)
+    return np.sqrt(drr / (1 + drr)) * _unit(d), np.sqrt(1 / (1 + drr)) * _unit(r)
 
 
 def synthetic_ir(cfg: AcousticConfig, rng: np.random.Generator) -> np.ndarray:
@@ -100,8 +107,12 @@ def apply_eq(h: np.ndarray, fs: float, eq: dict) -> np.ndarray:
     return np.fft.irfft(H * g, n)[: len(h)]
 
 
-def draw_responses(cfg: AcousticConfig, channels: list[str], rng: np.random.Generator):
-    """One impulse response per channel. Returns (dict name → ir, info dict)."""
+def draw_responses(cfg: AcousticConfig, channels: list[str], rng: np.random.Generator,
+                   direct_parts: dict | None = None):
+    """One impulse response per channel. Returns (dict name → ir, info dict).
+
+    ``direct_parts``: if a dict is given (measured model only), it is filled with each
+    channel's direct part (EQ applied), for replacing the direct sound of impacts."""
     model = load_response_model(cfg) if cfg.response == "measured" else None
     eq = load_eq() if (cfg.eq and cfg.response == "measured") else None
     if cfg.response == "measured" and model is None:
@@ -109,7 +120,13 @@ def draw_responses(cfg: AcousticConfig, channels: list[str], rng: np.random.Gene
                                 "`gransim build-assets` or set acoustics.response=synthetic")
     out = {}
     for c in channels:
-        out[c] = measured_ir(model, cfg, rng) if model is not None else synthetic_ir(cfg, rng)
+        if model is not None:
+            d, r = measured_ir_parts(model, cfg, rng)
+            out[c] = d + r
+            if direct_parts is not None:
+                direct_parts[c] = apply_eq(d, cfg.fs, eq) if eq is not None else d
+        else:
+            out[c] = synthetic_ir(cfg, rng)
         if eq is not None:
             out[c] = apply_eq(out[c], cfg.fs, eq)
     info = {"response": cfg.response, "eq": eq is not None,

@@ -73,10 +73,14 @@ def radiation_weights(imp: np.ndarray, cfg: SimConfig, seed: int) -> np.ndarray:
 
 
 def build_sources(events: np.ndarray, wall_force, cfg: SimConfig, t_start: float,
-                  n_out: int, seed: int = 0) -> tuple[dict[str, np.ndarray], dict]:
+                  n_out: int, seed: int = 0,
+                  impacts: dict | None = None) -> tuple[dict[str, np.ndarray], dict]:
     """Source force signals [N] per channel at cfg.acoustics.fs, sample 0 at t_start [s].
 
     events: processed event table; wall_force: :class:`WallForce`.
+    impacts: if a dict is given, it is filled per channel with the impact part of the
+    source (same filtering) and the impacts' start times [s] and weights (impulse ×
+    radiation factor × channel gain), for the recorded-click renderer.
     """
     ac = cfg.acoustics
     fs = ac.fs
@@ -116,7 +120,12 @@ def build_sources(events: np.ndarray, wall_force, cfg: SimConfig, t_start: float
             t_ev = imp["t_peak"][m] - 0.5 * tau[m]
             p = render_pulses(t_ev, imp["J_n"][m] * rw[m], tau[m], t_start, n_out, fs,
                               ac.pulse_shape, ac.oversample)
-            out[ch] += gain * split(p, fs, fc, "high")
+            p_hi = gain * split(p, fs, fc, "high")
+            out[ch] += p_hi
+            if impacts is not None:
+                if ac.highpass_hz > 0:
+                    p_hi = split(p_hi, fs, ac.highpass_hz, "high")
+                impacts[ch] = {"signal": p_hi, "t": t_ev, "w": gain * imp["J_n"][m] * rw[m]}
     if ac.highpass_hz > 0:
         for ch in CHANNELS:
             out[ch] = split(out[ch], fs, ac.highpass_hz, "high")

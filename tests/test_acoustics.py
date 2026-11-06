@@ -129,3 +129,35 @@ def test_measured_response_model_renders():
     r = render(cfg, ev, wall_force_for(ev), (0.0, 0.3), seed=1)
     assert np.isfinite(r.audio).all() and r.meta["response"] == "measured"
     assert r.meta["noise_file"] is not None
+
+
+def test_click_library_and_recorded_impacts(tmp_path):
+    """Isolated clicks are cut from a recording; impact_source=recorded puts them at the
+    impact times with the synthetic direct energy, and leaves the rest of the sound alone."""
+    from gransim.acoustics.assets import build_click_library, write_wav
+
+    rng = np.random.default_rng(0)
+    x = 0.002 * rng.standard_normal(3 * FS)
+    for t in np.arange(0.1, 2.9, 0.1):                  # isolated clicks every 100 ms
+        i = int(t * FS)
+        x[i:i + 100] += 0.4 * rng.standard_normal(100) * np.exp(-np.arange(100) / 20)
+    write_wav(tmp_path / "drops.wav", FS, x)
+    info = build_click_library([str(tmp_path / "drops.wav")], tmp_path / "clicks.npz")
+    assert info["n_clicks"] >= 10
+    with np.load(tmp_path / "clicks.npz") as z:
+        assert np.allclose((z["clips"] ** 2).sum(1), 1.0, rtol=1e-5)
+
+    ev = np.concatenate([one_event(t_peak=0.05 + 0.04 * k, J=1e-3 * (1 + k % 3)) for k in range(5)])
+    wf = wall_force_for(ev)
+    syn = _cfg(response="measured", eq=False)
+    rec = _cfg(response="measured", eq=False, impact_source="recorded",
+               click_library=str(tmp_path / "clicks.npz"))
+    a = render(syn, ev, wf, (0.0, 0.3), seed=5, keep_components=True)
+    b = render(rec, ev, wf, (0.0, 0.3), seed=5, keep_components=True)
+    assert b.meta["impact_source"] == "recorded" and b.meta["click_scale"] > 0
+    assert not np.allclose(a.clean, b.clean)
+    assert np.sum(b.clean ** 2) == pytest.approx(np.sum(a.clean ** 2), rel=0.5)
+    # channels without impacts are untouched
+    for c in CHANNELS:
+        if c != "bottom":
+            assert np.allclose(a.components[c], b.components[c])

@@ -190,6 +190,20 @@ def cmd_build_assets(args: argparse.Namespace) -> None:
     print(json.dumps(info, indent=2, default=str))
 
 
+def cmd_build_clicks(args: argparse.Namespace) -> None:
+    """Library of real single-impact clicks (for acoustics.impact_source = recorded)."""
+    import glob as _glob
+
+    from gransim.acoustics.assets import build_click_library
+
+    files = []
+    for pat in args.files:
+        files += sorted(_glob.glob(pat))
+    if not files:
+        raise SystemExit("no files matched")
+    print(json.dumps(build_click_library(files, args.out, max_clicks=args.max_clicks), indent=1))
+
+
 def cmd_sweep(args: argparse.Namespace) -> None:
     """Generate (or resume) a dataset from a sweep spec."""
     from gransim.sweep.runner import run_sweep, write_manifest
@@ -319,6 +333,13 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--sparse-count", type=int, default=5)
     p.add_argument("--noise-count", type=int, default=0)
     p.set_defaults(func=cmd_build_assets)
+
+    p = sub.add_parser("build-clicks", help="real single-impact click library from recordings")
+    p.add_argument("files", nargs="+", help="wav files or globs with isolated impacts "
+                                            "(sparse first-study clips, single-particle drops)")
+    p.add_argument("--out", default="assets/impacts/clicks_bb.npz")
+    p.add_argument("--max-clicks", type=int, default=600)
+    p.set_defaults(func=cmd_build_clicks)
 
     p = sub.add_parser("sweep", help="dataset generation from a sweep spec (resumable)")
     p.add_argument("spec", help="sweep YAML, e.g. configs/sweep_material.yaml")
