@@ -211,6 +211,17 @@ def cmd_upload(args: argparse.Namespace) -> None:
     print(f"{upload(args.out, args.repo, extra_files=extra)} files uploaded")
 
 
+def cmd_identifiability(args: argparse.Namespace) -> None:
+    """Spec 8.1: where N and the material mix in the acoustic statistics (no learning)."""
+    from gransim.analysis.identifiability import run
+    from gransim.sweep.runner import write_manifest
+
+    write_manifest(args.out)
+    rep = run(args.out, f_shake=args.f_shake, k=args.k, workers=args.workers)
+    print(json.dumps({k: v for k, v in rep.items() if k != "by_material"}, indent=1))
+    print(f"wrote {Path(args.out) / 'identifiability.json'} and identifiability.png")
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="gransim", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -292,6 +303,13 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--repo", required=True, help="dataset repo id, e.g. user/name")
     p.add_argument("--card", help="dataset card (README.md) to upload")
     p.set_defaults(func=cmd_upload)
+
+    p = sub.add_parser("identifiability", help="N-vs-material mixing map of a sweep (spec 8.1)")
+    p.add_argument("out", help="sweep output folder")
+    p.add_argument("--f-shake", type=float, default=6.2)
+    p.add_argument("--k", type=int, default=5)
+    p.add_argument("--workers", type=int, default=4)
+    p.set_defaults(func=cmd_identifiability)
 
     args = ap.parse_args(argv)
     args.func(args)
