@@ -218,7 +218,13 @@ def cmd_identifiability(args: argparse.Namespace) -> None:
 
     write_manifest(args.out)
     rep = run(args.out, f_shake=args.f_shake, k=args.k, workers=args.workers)
-    print(json.dumps({k: v for k, v in rep.items() if k != "by_material"}, indent=1))
+    print(json.dumps({k: v for k, v in rep.items() if k not in ("by_material", "predictability")},
+                     indent=1))
+    pr = rep["predictability"]
+    print(f"N MAE (linear floor): material unknown {pr['N_mae_material_unknown']:.1f}, "
+          f"known {pr['N_mae_material_known']:.1f}, mean guess {pr['N_mean_guess_mae']:.1f}")
+    for k, v in pr["properties"].items():
+        print(f"  {k:15s} from sound: MAE {v['mae']:.3g} (mean guess {v['mean_guess_mae']:.3g}), R² {v['r2']:.2f}")
     print(f"wrote {Path(args.out) / 'identifiability.json'} and identifiability.png")
 
 

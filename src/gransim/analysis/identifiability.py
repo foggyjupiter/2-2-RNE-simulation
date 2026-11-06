@@ -11,6 +11,11 @@ Reported:
   * fraction of clips whose neighbours differ by > ``big_dn`` particles
   * contrast pairs: statistic distance of same-N pairs (material changed) relative to
     the distance between clips whose N differs by ~10 at similar material
+  * predictability (a floor, not a model): linear ridge regression from the statistics,
+    5-fold cross-validated by dynamics run — N with the material unknown vs known, and
+    each material property from the sound alone
+  * variance decomposition: share of each statistic's variance explained by N alone
+    and by N + material
 """
 
 from __future__ import annotations
@@ -115,6 +120,74 @@ def analyse(rows: list[dict], X: np.ndarray, k: int = 5, big_dn: int = 15) -> di
     return rep
 
 
+def _transform(X: np.ndarray) -> np.ndarray:
+    X = X.copy()
+    i = {k: n for n, k in enumerate(STAT_KEYS)}
+    X[:, i["rms"]] = np.log(X[:, i["rms"]])
+    X[:, i["clip_fraction"]] = np.sqrt(X[:, i["clip_fraction"]])
+    X[:, i["onset_rate"]] = np.log1p(X[:, i["onset_rate"]])
+    return X
+
+
+def _ridge_cv(F, y, folds, alphas=(0.01, 0.1, 1, 10, 30, 100)):
+    best = None
+    for a in alphas:
+        p = np.zeros_like(y)
+        for k in np.unique(folds):
+            tr, te = folds != k, folds == k
+            mu, sd = F[tr].mean(0), F[tr].std(0) + 1e-12
+            A = (F[tr] - mu) / sd
+            b = y[tr].mean()
+            w = np.linalg.solve(A.T @ A + a * np.eye(A.shape[1]), A.T @ (y[tr] - b))
+            p[te] = ((F[te] - mu) / sd) @ w + b
+        e = float(np.abs(p - y).mean())
+        if best is None or e < best[0]:
+            best = (e, p)
+    return best
+
+
+def predictability(rows: list[dict], X: np.ndarray, seed: int = 0) -> dict:
+    """Linear-ridge floor of how well N and the material follow from the statistics."""
+    L = _transform(X)
+    N = np.array([r["N"] for r in rows], float)
+    mat = {"diameter_mm": np.array([r["particle_diameter_m"] for r in rows]) * 1e3,
+           "density": np.array([r["particle_density"] for r in rows]),
+           "restitution_pp": np.array([r["restitution_pp"] for r in rows]),
+           "restitution_pw": np.array([r["restitution_pw"] for r in rows]),
+           "friction_pp": np.array([r["friction_pp"] for r in rows]),
+           "friction_pw": np.array([r["friction_pw"] for r in rows])}
+    M = np.stack([np.log(mat["diameter_mm"]), np.log(mat["density"])] +
+                 [mat[k] for k in list(mat)[2:]], 1)
+    runs = np.array([r["run_id"] for r in rows])
+    ur = np.random.default_rng(seed).permutation(np.unique(runs))
+    fold_of = {r: i % 5 for i, r in enumerate(ur)}
+    folds = np.array([fold_of[r] for r in runs])
+    out = {"note": "linear ridge on 13 summary statistics, 5-fold CV grouped by run; a floor "
+                   "for what a learned model can reach, not an estimate of it",
+           "N_mean_guess_mae": float(np.abs(N - N.mean()).mean()),
+           "N_mae_material_unknown": _ridge_cv(L, N, folds)[0],
+           "N_mae_material_known": _ridge_cv(np.hstack([L, M]), N, folds)[0],
+           "properties": {}}
+    for k, v in mat.items():
+        e, p = _ridge_cv(L, v, folds)
+        out["properties"][k] = {"mae": e, "mean_guess_mae": float(np.abs(v - v.mean()).mean()),
+                                "r2": float(1 - np.mean((p - v) ** 2) / np.var(v))}
+    # variance of each statistic explained by N alone vs N + material (in-sample, quadratic in log N)
+    ln = np.log1p(N)[:, None]
+    PN = np.hstack([ln, ln ** 2, np.ones_like(ln)])
+    PNM = np.hstack([PN, M, M * ln])
+    dec = {}
+    for i, key in enumerate(STAT_KEYS):
+        y = L[:, i]
+        r = []
+        for F in (PN, PNM):
+            w = np.linalg.lstsq(F, y, rcond=None)[0]
+            r.append(float(1 - np.var(y - F @ w) / np.var(y)))
+        dec[key] = {"r2_N": r[0], "r2_N_material": r[1]}
+    out["variance_decomposition"] = dec
+    return out
+
+
 def run(out: str | Path, f_shake: float = 6.2, k: int = 5, workers: int = 4,
         max_clips: int | None = None) -> dict:
     """Load the sweep manifest, compute statistics, write identifiability.json + figure."""
@@ -125,6 +198,7 @@ def run(out: str | Path, f_shake: float = 6.2, k: int = 5, workers: int = 4,
         rows = rows[:max_clips]
     X = clip_stats(out, rows, f_shake, workers)
     rep = analyse(rows, X, k)
+    rep["predictability"] = predictability(rows, X)
     (out / "identifiability.json").write_text(json.dumps(rep, indent=1))
     _plot(out, rows, X, k)
     return rep
