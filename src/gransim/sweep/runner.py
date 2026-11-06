@@ -135,6 +135,9 @@ def run_job(job: Job, spec: dict, out: str) -> dict:
             "pulse_shape": m["pulse_shape"], "tau_mode": m["tau_mode"],
             "tau_c_median_s": m["tau_c_median_s"], "band_split_hz": m["band_split_hz"],
             "highpass_hz": m["highpass_hz"], "pp_gain": m["pp_gain"],
+            "impact_gain_sigma": m.get("impact_gain_sigma", 0.0),
+            "position_weighting": m.get("position_weighting", 0.0),
+            "direct_attack_s": ac.direct_attack_s,
             "clip_fraction": m["clip_fraction"], "rms": m["rms"],
             # ground-truth phase (spec 9.1)
             **{f"gt_{k_}": v for k_, v in phase.items()},

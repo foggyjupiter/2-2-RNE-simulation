@@ -54,3 +54,44 @@ def test_noise_is_rescaled_to_other_rpm():
     y558, m558 = draw_noise(ac, 558, 48000 * 2, np.random.default_rng(0))
     assert not m372["noise_rpm_scaled"] and m558["noise_rpm_scaled"]
     assert y558.size == 48000 * 2 and np.isfinite(y558).all()
+
+
+def test_rerender_reproduces_and_adds_axes(tmp_path):
+    """Re-rendering with no change gives the same audio (to 1 LSB); a new per-render axis
+    is drawn from the render seed, so a system's conditions share it."""
+    import json
+
+    import yaml
+
+    from gransim.acoustics.assets import read_wav
+    from gransim.sweep.rerender import rerender_dataset
+    from gransim.sweep.runner import run_sweep
+
+    sp = {"base": "configs/experiment_replica.yaml",
+          "overrides": {"contact": {"model": "hertz"}, "time": {"settle_time": 0.2, "record_time": 0.45}},
+          "seed": 3, "n_dynamics": 1, "renders_per_run": 2, "sampling": "random",
+          "conditions": {"key": "excitation.rpm", "values": [372, 450]},
+          "axes": {"particles.count": {"dist": "int_uniform", "low": 3, "high": 4},
+                   "acoustics.mic_gain": {"dist": "loguniform", "low": 0.65, "high": 1.3}}}
+    (tmp_path / "spec.yaml").write_text(yaml.safe_dump(sp))
+    src = tmp_path / "src"
+    assert run_sweep(tmp_path / "spec.yaml", src, workers=1, progress=lambda m: None)["ok"] == 2
+
+    same = tmp_path / "same"
+    assert rerender_dataset(src, same, workers=1, progress=lambda m: None)["rows"] == 4
+    for line in (same / "manifest.jsonl").read_text().splitlines():
+        r = json.loads(line)
+        _, a = read_wav(src / r["file_name"])
+        _, b = read_wav(same / r["file_name"])
+        assert np.abs(a - b).max() <= 2 / 32768
+
+    new = tmp_path / "new"
+    rerender_dataset(src, new, axes={"acoustics.impact_gain_sigma": {"dist": "uniform", "low": 0.6, "high": 1.5}},
+                     fixed={"direct_attack_s": 2e-4}, workers=1, progress=lambda m: None)
+    rows = [json.loads(x) for x in (new / "manifest.jsonl").read_text().splitlines()]
+    by_render = {}
+    for r in rows:
+        assert 0.6 <= r["impact_gain_sigma"] <= 1.5 and r["direct_attack_s"] == 2e-4
+        by_render.setdefault(r["render"], set()).add(r["impact_gain_sigma"])
+    assert all(len(v) == 1 for v in by_render.values())       # shared by both conditions
+    assert len({next(iter(v)) for v in by_render.values()}) == 2  # independent per render

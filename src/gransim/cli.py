@@ -212,6 +212,19 @@ def cmd_upload(args: argparse.Namespace) -> None:
     print(f"{upload(args.out, args.repo, extra_files=extra, prefix=prefix)} files uploaded")
 
 
+def cmd_rerender(args: argparse.Namespace) -> None:
+    """Re-render a sweep's audio with other acoustic settings (dynamics reused)."""
+    from gransim.sweep.rerender import parse_axis, rerender_dataset
+
+    fixed = {}
+    for it in args.set or []:
+        key, val = it.split("=", 1)
+        fixed[key.removeprefix("acoustics.")] = yaml.safe_load(val)
+    axes = dict(parse_axis(a) for a in args.axis or [])
+    print(rerender_dataset(args.src, args.out, axes=axes, fixed=fixed, workers=args.workers,
+                           tag=args.tag, limit=args.limit, progress=lambda m: print(m, flush=True)))
+
+
 def cmd_identifiability(args: argparse.Namespace) -> None:
     """Spec 8.1: where N and the material mix in the acoustic statistics (no learning)."""
     from gransim.analysis.identifiability import run
@@ -315,6 +328,18 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--card", help="dataset card (README.md) to upload")
     p.add_argument("--prefix", help="sub-folder of the repo to upload into (e.g. bb_fixed)")
     p.set_defaults(func=cmd_upload)
+
+    p = sub.add_parser("rerender", help="re-render a sweep's audio with other acoustic settings")
+    p.add_argument("src", help="sweep output folder (with runs/ and sweep_spec.yaml)")
+    p.add_argument("--out", required=True, help="new folder for the re-rendered dataset")
+    p.add_argument("--set", action="append", help="acoustic setting for every clip, "
+                                                  "e.g. acoustics.direct_attack_s=2e-4")
+    p.add_argument("--axis", action="append", help="new per-render axis key=dist:low:high, "
+                                                   "e.g. acoustics.impact_gain_sigma=uniform:0.6:1.5")
+    p.add_argument("--tag", default="r2")
+    p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--limit", type=int, default=None)
+    p.set_defaults(func=cmd_rerender)
 
     p = sub.add_parser("identifiability", help="N-vs-material mixing map of a sweep (spec 8.1)")
     p.add_argument("out", help="sweep output folder")
