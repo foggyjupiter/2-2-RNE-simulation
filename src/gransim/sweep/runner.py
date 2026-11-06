@@ -9,7 +9,7 @@ Layout under the output folder::
 
     runs/<run_id>/{config_snapshot.yaml, events.npz, wall_force.npz, summary.json, done.json}
     audio/<shard>/<run_id>_k<k>.wav
-    manifest.csv, manifest.jsonl           (rebuilt from the done markers)
+    manifest.csv, manifest.jsonl, metadata.csv   (rebuilt from the done markers)
     failures.jsonl
 """
 
@@ -209,4 +209,6 @@ def write_manifest(out: str | Path) -> int:
         w = csv.DictWriter(fh, fieldnames=keys, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
+    # same table under the name the Hugging Face "audiofolder" loader expects
+    (out / "metadata.csv").write_bytes((out / "manifest.csv").read_bytes())
     return len(rows)
