@@ -91,7 +91,8 @@ class ParticleConfig(_Strict):
 
 class ContactConfig(_Strict):
     model: Literal["linear", "hertz"] = Field(
-        "linear", description="Normal force law: linear spring-dashpot or Hertz (Tsuji damping)")
+        "hertz", description="Normal force law: Hertz (Tsuji damping, default) or linear "
+                             "spring-dashpot")
     restitution_pp: float = Field(0.8, gt=0, le=1, description="Particle-particle restitution e")
     restitution_pw: float = Field(0.8, gt=0, le=1, description="Particle-wall restitution e")
     friction_pp: float = Field(0.3, ge=0, description="Particle-particle Coulomb friction μ")
@@ -103,9 +104,10 @@ class ContactConfig(_Strict):
                     "k_n is derived from it separately for particle-particle and particle-wall "
                     "pairs (relaxed stiffness).")
     modulus_scale: float = Field(
-        1.0, gt=0, le=1.0,
+        0.25, gt=0, le=1.0,
         description="hertz model only: multiply real Young's moduli by this factor "
-                    "(1 = real stiffness).")
+                    "(1 = real stiffness). Default 0.25 = softest value that passed the "
+                    "stiffness convergence test (contact time ≈ 1.7× real).")
     tangential_stiffness_ratio: float = Field(
         2.0 / 7.0, gt=0, description="k_t / k_n (for Hertz: k_t / (dF_n/dδ))")
     tangential_damping_ratio: float = Field(0.5, ge=0, description="c_t / c_n")
@@ -323,6 +325,13 @@ def check_config(cfg: SimConfig) -> list[str]:
             f"(contact_time / {cfg.time.dt_safety:g})")
     if dq["layers_F"] > 0 and cfg.particles.count * cfg.particles.diameter ** 3 > 0.5 * math.prod(cfg.container.size):
         msgs.append("particle volume exceeds half the container volume")
+    try:
+        from gransim.analysis.stiffness import load_allowed, stiffness_warning
+        w = stiffness_warning(cfg, load_allowed())
+    except Exception:  # pragma: no cover - a missing/corrupt file must not block runs
+        w = None
+    if w:
+        msgs.append(w)
     for m in msgs:
         warnings.warn(m, stacklevel=2)
     return msgs

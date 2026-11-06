@@ -18,6 +18,7 @@ from gransim.config import SimConfig
 
 
 def shaken(n=100, freq=8.0, dt=None, e=0.8, mu=0.3, **contact):
+    contact = {"model": "linear", **contact}
     return SimConfig(particles={"count": n},
                      excitation={"mode": "fixed_amplitude", "amplitude": 0.0134, "frequency": freq},
                      contact={"restitution_pp": e, "restitution_pw": e,
@@ -44,8 +45,10 @@ def test_energy_balance_closes(mu, rotation):
     assert np.max(np.abs(res)) / W < ENERGY_TOL
 
 
-def test_energy_balance_hertz():
-    sim, d = run(shaken(n=60, model="hertz", modulus_scale=0.05), 0.4)
+@pytest.mark.parametrize("scale", [0.05, 0.25])
+def test_energy_balance_hertz(scale):
+    """Hertz model incl. the production default (modulus_scale = 0.25)."""
+    sim, d = run(shaken(n=60, model="hertz", modulus_scale=scale), 0.4)
     W = d["w_in"][-1]
     assert W > 1e-3
     assert np.max(np.abs(energy_residual(d))) / W < ENERGY_TOL

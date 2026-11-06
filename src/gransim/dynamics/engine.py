@@ -444,6 +444,9 @@ class Diagnostics:
     d_corr: list = field(default_factory=list)       # cumulative mid-step work correction [J]
     w_k: list = field(default_factory=list)          # cumulative k_t-variation work (Hertz) [J]
     mean_height: list = field(default_factory=list)  # mean particle z in container frame [m]
+    height_std: list = field(default_factory=list)   # spatial std of particle z [m]
+    ke_rel: list = field(default_factory=list)       # Σ ½m|v − u_c|², KE relative to container [J]
+    ke_com: list = field(default_factory=list)       # ½M|V_com − u_c|², bulk (collective) part [J]
     n_pp: list = field(default_factory=list)         # current pp contacts
     n_pw: list = field(default_factory=list)         # current wall contacts
 
@@ -654,7 +657,8 @@ class Simulation:
     def sample(self) -> None:
         d = self.diag
         ke_t, ke_r, pe = self.energies()
-        zc, _ = container_motion(self.t, self.A, 2 * math.pi * self.f, self.cfg.excitation.ramp_time)
+        zc, uc = container_motion(self.t, self.A, 2 * math.pi * self.f,
+                                  self.cfg.excitation.ramp_time)
         d.t.append(self.t)
         d.zc.append(zc)
         d.ke_trans.append(ke_t)
@@ -668,6 +672,17 @@ class Simulation:
         d.d_corr.append(self.acc[A_DCORR])
         d.w_k.append(self.acc[A_WK])
         d.mean_height.append(float(np.mean(self.x[:, 2]) - zc) if self.n else 0.0)
+        d.height_std.append(float(np.std(self.x[:, 2])) if self.n else 0.0)
+        if self.n:
+            vr = self.v.copy()
+            vr[:, 2] -= uc
+            M = self.mass.sum()
+            vcom = (self.mass[:, None] * vr).sum(0) / M
+            d.ke_rel.append(0.5 * float(np.sum(self.mass[:, None] * vr ** 2)))
+            d.ke_com.append(0.5 * M * float(vcom @ vcom))
+        else:
+            d.ke_rel.append(0.0)
+            d.ke_com.append(0.0)
         d.n_pp.append(self.acc[A_NPP])
         d.n_pw.append(self.acc[A_NPW])
 

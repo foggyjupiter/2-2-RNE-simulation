@@ -1,0 +1,15 @@
+description: Softest contact stiffness per model that passed the stiffness convergence
+  test (gransim stiffness-test) against real Hertz stiffness. Softer contacts must
+  not be used for dataset generation (spec 10.1). null = no level of that model passed.
+linear: null
+hertz:
+  min_modulus_scale: 0.25
+level_pass:
+  x1: false
+  x4: false
+  x16: false
+  h0.015625: false
+  h0.0625: false
+  h0.25: true
+  real: true
+note: conditions N=[150, 300], Γ=[1.5, 2.3, 6.0], seeds=2

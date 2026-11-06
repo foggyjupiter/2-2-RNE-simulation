@@ -121,7 +121,7 @@ def test_separate_collisions_not_merged():
 def shaken(n=60, mu=0.3, freq=9.0):
     return SimConfig(particles={"count": n},
                      excitation={"mode": "fixed_amplitude", "amplitude": 0.0134, "frequency": freq},
-                     contact={"friction_pp": mu, "friction_pw": mu},
+                     contact={"model": "linear", "friction_pp": mu, "friction_pw": mu},
                      time={"settle_time": 0.3})
 
 

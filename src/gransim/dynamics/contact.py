@@ -152,7 +152,8 @@ def restitution_scatter(e: float, model: int, damp: float, dt_ratio: float) -> f
 def _v_ref(cfg: "SimConfig") -> float:
     """Conservative (high) impact speed used to bound the shortest Hertz contact [m/s]."""
     A, f, _ = cfg.excitation.resolved(cfg.gravity)
-    return 2.0 * A * 2.0 * math.pi * f + math.sqrt(2.0 * cfg.gravity * cfg.container.size[2]) + 0.1
+    v = 2.0 * A * 2.0 * math.pi * f + math.sqrt(2.0 * cfg.gravity * cfg.container.size[2])
+    return max(v, 1.0) + 0.1  # floor: never assume impacts slower than ~1 m/s
 
 
 def derive_contact_params(cfg: "SimConfig") -> dict:
