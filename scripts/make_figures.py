@@ -6,6 +6,8 @@
   fig_spectrograms.png       real vs simulated mel spectrograms, same N, 1.5 s excerpts
   fig_identifiability.png    Cramér-Rao bound on the N error, material known vs unknown
   fig_dataset_params.png     distributions of N and the material properties in the dataset
+  fig_shake_speed.png        shaking frequency estimated from each real recording vs N
+  fig_restitution_probe.png  periodicity and onset rate vs N: real vs restitution settings
 """
 
 from __future__ import annotations
@@ -24,6 +26,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "results" / "figures"
 plt.rcParams.update({"font.size": 9, "axes.grid": True, "grid.alpha": 0.3})
+# categorical slots (fixed order): real, current simulation, best-fitting simulation
+C_REAL, C_SIM, C_FIT = "#2a78d6", "#eb6834", "#1baf7a"
+INK, INK2 = "#0b0b0b", "#52514e"
 
 
 def sim2real_features():
@@ -130,6 +135,75 @@ def dataset_params(dataset: str):
     plt.close(fig)
 
 
+def shake_speed(recordings: str):
+    """Real shaker speed per clip (from the sound): drifts 6.0-6.7 Hz at a nominal 6.2 Hz."""
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from gransim.acoustics.assets import read_wav
+    from gransim.analysis.order_params import estimate_shake_frequency
+
+    Ns, fs_ = [], []
+    for N in range(5, 101, 5):
+        for f in sorted(glob.glob(f"{recordings}/{N}-*.wav")):
+            fs, x = read_wav(f)
+            Ns.append(N)
+            fs_.append(estimate_shake_frequency(x, fs, 6.2))
+    if not Ns:
+        return
+    Ns, fs_ = np.array(Ns), np.array(fs_)
+    fig, a = plt.subplots(figsize=(6, 3.4))
+    jit = np.random.default_rng(0).uniform(-1.2, 1.2, len(Ns))
+    a.plot(Ns + jit, fs_, "o", ms=4, color=C_REAL, alpha=0.45, mec="none", label="each recording")
+    u = np.unique(Ns)
+    a.plot(u, [fs_[Ns == n].mean() for n in u], "-", lw=2, color=C_REAL, label="mean per N")
+    a.axhline(6.2, color=INK2, lw=1, ls="--")
+    a.text(117, 6.205, "nominal 6.2 Hz", va="bottom", ha="right", color=INK2, fontsize=8)
+    a.set_xlabel("N (particles)")
+    a.set_ylabel("shaking frequency from the sound [Hz]")
+    a.set_title("First-study recordings: the shaker speed drifts between clips", color=INK)
+    a.set_xlim(0, 118)
+    a.legend(loc="upper left", fontsize=8, frameon=False)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_shake_speed.png", dpi=130)
+    plt.close(fig)
+
+
+def restitution_probe():
+    """Periodicity (per-clip folded peakiness) and onset rate vs N: recordings vs e = 0.8
+    (data default) vs e_pp 0.95 / e_pw 0.7 (best fit). From results/sim2real/restitution_probe/."""
+    d = ROOT / "results" / "sim2real" / "restitution_probe"
+    try:
+        base = next(r for r in json.loads((d / "egrid.json").read_text())
+                    if r["set"] == "e0.8" and r["sigma"] == 0.0)
+        fit = next(r for r in json.loads((d / "egrid_split.json").read_text())
+                   if r["set"] == "pp0.95 pw0.7" and r["sigma"] == 0.0)
+    except (FileNotFoundError, StopIteration):
+        return
+    fig, ax = plt.subplots(1, 2, figsize=(10, 3.8))
+    for a, key, lab, log in ((ax[0], "fold_peak_to_mean", "periodicity (folded peak / mean)", False),
+                             (ax[1], "onset_rate", "detected impact onsets [1/s]", True)):
+        series = [("recordings", base, "real", C_REAL, "o"),
+                  ("simulation e = 0.8", base, "sim", C_SIM, "s"),
+                  ("simulation e_pp 0.95, e_pw 0.7", fit, "sim", C_FIT, "^")]
+        for name, rep, which, col, mk in series:
+            Ns = sorted(int(n) for n in rep["table"])
+            v = [rep["table"][str(n)][key][which] for n in Ns]
+            a.plot(Ns, v, "-", marker=mk, lw=2, ms=6, color=col, label=name, mec="white", mew=1)
+            a.annotate(name.replace("simulation ", "sim "), (Ns[-1], v[-1]), xytext=(6, 0),
+                       textcoords="offset points", va="center", fontsize=7.5, color=INK2)
+        a.set_xlabel("N (particles)")
+        a.set_title(lab, color=INK)
+        a.set_xlim(0, 135)
+        if log:
+            a.set_yscale("log")
+    ax[0].legend(fontsize=7.5, frameon=False, loc="upper right")
+    fig.suptitle("Restitution vs the first-study recordings (372 rpm; per-clip shaker frequency)",
+                 color=INK)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_restitution_probe.png", dpi=130)
+    plt.close(fig)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--recordings", help="first-study data-all folder")
@@ -140,8 +214,10 @@ def main():
     sim2real_features()
     identifiability()
     dataset_params(a.dataset)
+    restitution_probe()
     if a.recordings:
         spectrograms(a.recordings, a.runs)
+        shake_speed(a.recordings)
     print("figures:", sorted(p.name for p in OUT.glob("*.png")))
 
 
