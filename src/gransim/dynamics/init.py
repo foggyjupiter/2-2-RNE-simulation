@@ -63,3 +63,36 @@ def lattice_positions(cfg: SimConfig, radius: np.ndarray, rng: np.random.Generat
         x[:, 1] = np.clip(x[:, 1], radius, Ly - radius)
         x[:, 2] = np.maximum(x[:, 2], radius)
     return x
+
+
+def random_positions(cfg: SimConfig, radius: np.ndarray, rng: np.random.Generator,
+                     gap_frac: float = 0.02, max_tries: int = 20000) -> np.ndarray:
+    """Random sequential addition in the container without overlaps (default initial state).
+
+    Particles are inserted largest first at uniformly random positions anywhere in
+    the box, rejecting overlaps (with a small clearance). Settling under gravity
+    afterwards produces a disordered packing, avoiding the artificial symmetry of
+    a lattice. Falls back to the lattice when the box is too full.
+    """
+    n = radius.size
+    Lx, Ly, Lz = cfg.container.size
+    x = np.zeros((n, 3))
+    order = np.argsort(-radius)
+    placed = 0
+    for idx in order:
+        r = radius[idx]
+        lo = np.array([r, r, r])
+        hi = np.array([Lx - r, Ly - r, Lz - r])
+        for _ in range(max_tries):
+            p = lo + rng.random(3) * (hi - lo)
+            if placed:
+                q = x[order[:placed]]
+                rr = radius[order[:placed]] + r
+                if np.any(np.sum((q - p) ** 2, axis=1) < (rr * (1 + gap_frac)) ** 2):
+                    continue
+            x[idx] = p
+            placed += 1
+            break
+        else:
+            return lattice_positions(cfg, radius, rng)
+    return x

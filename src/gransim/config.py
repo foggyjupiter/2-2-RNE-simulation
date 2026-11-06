@@ -79,6 +79,9 @@ class ParticleConfig(_Strict):
         description="Relative std of diameter for polydispersity (0 = monodisperse). "
                     "Density is held fixed, so mass scales with d^3.")
     material: Material = Material(youngs_modulus=2.3e9, poisson_ratio=0.35)  # ABS-like BB
+    init: Literal["random", "lattice"] = Field(
+        "random", description="Initial placement before settling: random sequential addition "
+                              "(disordered packing) or jittered lattice")
 
     @property
     def density(self) -> float:
@@ -189,6 +192,25 @@ class TimeConfig(_Strict):
     record_time: float = Field(5.0, gt=0, description="Recorded duration [s]")
 
 
+class EventConfig(_Strict):
+    """Contact-event classification (spec 5.1). ``None`` = automatic default."""
+
+    v_impact: Optional[float] = Field(
+        None, gt=0,
+        description="Approach speed above which a contact can be an impact [m/s]; "
+                    "default 0.1·sqrt(2 g d)")
+    duration_max: Optional[float] = Field(
+        None, gt=0,
+        description="Longest contact still counted as an impact [s]; "
+                    "default 3 × binary contact time at v_impact")
+    merge_gap: Optional[float] = Field(
+        None, ge=0,
+        description="Re-contacts of the same pair within this gap (and slower than v_impact) "
+                    "are merged into one event [s]; default = binary contact time")
+    wall_force_rate: float = Field(
+        22050.0, gt=0, description="Sampling rate of the per-wall force time series [Hz]")
+
+
 class OutputConfig(_Strict):
     diagnostics_interval: float = Field(1.0e-3, gt=0, description="Energy/state sampling [s]")
     save_trajectory: bool = False
@@ -203,6 +225,7 @@ class SimConfig(_Strict):
     contact: ContactConfig = ContactConfig()
     excitation: ExcitationConfig = ExcitationConfig(frequency=8.0)
     time: TimeConfig = TimeConfig()
+    events: EventConfig = EventConfig()
     output: OutputConfig = OutputConfig()
 
     @model_validator(mode="after")

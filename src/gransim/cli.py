@@ -52,7 +52,24 @@ def cmd_run(args: argparse.Namespace) -> None:
                         final_x=res.final_x, final_v=res.final_v, final_w=res.final_w)
     if res.trajectory is not None:
         np.savez_compressed(out / "trajectory.npz", **res.trajectory)
-    summary = {"elapsed_s": elapsed, "kernel_s": res.wall_time_s, **res.derived}
+    from gransim.events.io import save_events, save_wall_force
+    from gransim.events.tracker import IMPACT, collision_interval_check
+
+    t0 = res.wall_force.t0
+    save_events(out / "events.npz", res.events, res.event_params, (t0, t0 + cfg.time.record_time))
+    save_wall_force(out / "wall_force.npz", res.wall_force)
+    ev = res.events
+    chk = collision_interval_check(ev, res.event_params["binary_contact_time"])
+    summary = {"elapsed_s": elapsed, "kernel_s": res.wall_time_s,
+               "n_events": int(ev.size),
+               "n_impacts": int((ev["contact_type"] == IMPACT).sum()),
+               "n_merged_events": int((ev["n_merged"] > 1).sum()),
+               "median_impact_interval_s": chk["median_interval"],
+               "impact_interval_over_contact_time": chk["ratio"],
+               **res.derived}
+    if not chk["ok"]:
+        print(f"WARNING: median interval between a particle's impacts is only {chk['ratio']:.1f}x "
+              "the contact time (spec 4.1 (b)); check with the stiffness convergence test")
     (out / "summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
 
