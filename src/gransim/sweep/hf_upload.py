@@ -36,8 +36,12 @@ def _pending(out: Path, done_set: set[str]) -> list[str]:
 
 
 def upload(out: str | Path, repo_id: str, batch: int = 800, max_retries: int = 4,
-           extra_files: dict | None = None, log=print) -> int:
-    """Upload new files in batches; returns the number of files uploaded."""
+           extra_files: dict | None = None, log=print, prefix: str = "") -> int:
+    """Upload new files in batches; returns the number of files uploaded.
+
+    ``prefix`` puts the whole folder under a sub-directory of the repo (e.g. a
+    companion dataset ``bb_fixed/`` next to the main one).
+    """
     from huggingface_hub import CommitOperationAdd, HfApi
 
     from gransim.sweep.runner import write_manifest
@@ -53,14 +57,14 @@ def upload(out: str | Path, repo_id: str, batch: int = 800, max_retries: int = 4
     n = 0
     for i in range(0, len(todo), batch):
         chunk = todo[i:i + batch]
-        ops = [CommitOperationAdd(path_in_repo=p, path_or_fileobj=str(out / p)) for p in chunk]
+        ops = [CommitOperationAdd(path_in_repo=prefix + p, path_or_fileobj=str(out / p)) for p in chunk]
         _commit(api, repo_id, ops, f"add {len(chunk)} files ({chunk[0]} …)", max_retries, log)
         with open(track, "a", encoding="utf-8") as fh:
             fh.write("\n".join(chunk) + "\n")
         n += len(chunk)
         log(f"uploaded {n}/{len(todo)}")
     meta = ["metadata.csv", "manifest.csv", "manifest.jsonl", "sweep_spec.yaml"]
-    ops = [CommitOperationAdd(path_in_repo=m, path_or_fileobj=str(out / m))
+    ops = [CommitOperationAdd(path_in_repo=prefix + m, path_or_fileobj=str(out / m))
            for m in meta if (out / m).exists()]
     for dst, src in (extra_files or {}).items():
         ops.append(CommitOperationAdd(path_in_repo=dst, path_or_fileobj=str(src)))

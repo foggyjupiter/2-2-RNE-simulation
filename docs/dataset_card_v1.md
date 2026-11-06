@@ -24,6 +24,7 @@ pretty_name: RNE granular acoustics v1 (blind count estimation)
 | `manifest.jsonl` | 같은 내용 JSONL |
 | `runs/<run_id>/` | 재합성용 동역학 출력: `events.npz`, `wall_force.npz`, `config_snapshot.yaml`, `summary.json` |
 | `sweep_spec.yaml` | 생성에 쓴 스윕 명세 |
+| `bb_fixed/` | **물질 고정 동반 데이터셋** (1차 연구 BB: 6 mm, 0.12 g, e = 0.8, μ = 0.3; N만 변함, 300회 × 4클립). 같은 구조(`metadata.csv`, `audio/`, `runs/`). "물질을 안다고 가정한" 비교 모델 학습과 실측 BB 녹음 비교용 |
 
 ## 라벨과 변수
 

@@ -1,0 +1,23 @@
+# Fixed-material companion dataset (first-study style): the first-study BB only
+# (6 mm, 0.12 g, e = 0.8, mu = 0.3), N varied. Used to train the "known material"
+# baseline and to compare with the real BB recordings. Nuisance and acoustic
+# conditions are randomised exactly as in sweep_material.yaml.
+base: configs/experiment_replica.yaml
+overrides:
+  contact: {model: hertz, restitution_pp: 0.8, restitution_pw: 0.8, friction_pp: 0.3, friction_pw: 0.3}
+  particles: {diameter: 0.006, mass: 1.2e-4}
+  excitation: {rpm: 372}
+  time: {record_time: 5.3}
+seed: 4242
+n_dynamics: 300
+renders_per_run: 4
+sampling: lhs
+label_key: particles.count
+blind_axes: []
+axes:
+  particles.count:            {dist: int_uniform, low: 0, high: 100}
+  contact.wall_roughness_deg: {dist: uniform, low: 1.0, high: 4.0}
+  acoustics.mic_gain:         {dist: loguniform, low: 0.65, high: 1.3}
+  acoustics.drr:              {dist: loguniform, low: 3.0, high: 12.0}
+  acoustics.noise_gain:       {dist: uniform, low: 0.5, high: 1.5}
+contrast_pairs: {}

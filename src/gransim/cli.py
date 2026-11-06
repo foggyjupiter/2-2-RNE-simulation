@@ -208,7 +208,8 @@ def cmd_upload(args: argparse.Namespace) -> None:
     extra = {}
     if args.card:
         extra["README.md"] = args.card
-    print(f"{upload(args.out, args.repo, extra_files=extra)} files uploaded")
+    prefix = (args.prefix.rstrip("/") + "/") if args.prefix else ""
+    print(f"{upload(args.out, args.repo, extra_files=extra, prefix=prefix)} files uploaded")
 
 
 def cmd_identifiability(args: argparse.Namespace) -> None:
@@ -308,6 +309,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("out", help="sweep output folder")
     p.add_argument("--repo", required=True, help="dataset repo id, e.g. user/name")
     p.add_argument("--card", help="dataset card (README.md) to upload")
+    p.add_argument("--prefix", help="sub-folder of the repo to upload into (e.g. bb_fixed)")
     p.set_defaults(func=cmd_upload)
 
     p = sub.add_parser("identifiability", help="N-vs-material mixing map of a sweep (spec 8.1)")
