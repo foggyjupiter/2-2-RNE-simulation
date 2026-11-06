@@ -70,20 +70,22 @@ def upload(out: str | Path, repo_id: str, batch: int = 800, max_retries: int = 4
 
 
 def _commit(api, repo_id, ops, message, max_retries, log):
+    """create_commit with retries. The gateway sometimes answers 502 although the commit
+    went through, so after an error the latest commit title is checked first."""
     for attempt in range(max_retries + 1):
         try:
             api.create_commit(repo_id=repo_id, repo_type="dataset", operations=ops,
                               commit_message=message)
             return
-        except Exception as e:  # gateway errors can hide a successful commit
+        except Exception as e:
             time.sleep(5 * 2 ** attempt)
             try:
-                have = set(api.list_repo_files(repo_id, repo_type="dataset"))
-                if all(op.path_in_repo in have for op in ops) and not message.startswith("update"):
-                    log(f"commit confirmed after error: {e!r}")
+                last = api.list_repo_commits(repo_id, repo_type="dataset")[0]
+                if last.title == message:
+                    log(f"commit confirmed after error: {type(e).__name__}")
                     return
             except Exception:
                 pass
             if attempt == max_retries:
                 raise
-            log(f"retry {attempt + 1} after {e!r}")
+            log(f"retry {attempt + 1} after {type(e).__name__}")
