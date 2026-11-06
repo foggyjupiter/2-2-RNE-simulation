@@ -78,16 +78,38 @@ def synthetic_ir(cfg: AcousticConfig, rng: np.random.Generator) -> np.ndarray:
     return _unit(h)
 
 
+EQ_FILE = ASSETS / "impulse_response" / "eq.npz"
+
+
+def load_eq() -> dict | None:
+    if not EQ_FILE.exists():
+        return None
+    with np.load(EQ_FILE) as z:
+        return {"f": z["f"], "gain_db": z["gain_db"]}
+
+
+def apply_eq(h: np.ndarray, fs: float, eq: dict) -> np.ndarray:
+    """Zero-phase spectral equaliser (gain in dB vs frequency) applied to h."""
+    n = 1 << int(np.ceil(np.log2(2 * len(h))))
+    H = np.fft.rfft(h, n)
+    f = np.fft.rfftfreq(n, 1 / fs)
+    g = 10 ** (np.interp(f, eq["f"], eq["gain_db"]) / 20)
+    return np.fft.irfft(H * g, n)[: len(h)]
+
+
 def draw_responses(cfg: AcousticConfig, channels: list[str], rng: np.random.Generator):
     """One impulse response per channel. Returns (dict name → ir, info dict)."""
     model = load_response_model(cfg) if cfg.response == "measured" else None
+    eq = load_eq() if (cfg.eq and cfg.response == "measured") else None
     if cfg.response == "measured" and model is None:
         raise FileNotFoundError("measured response model not found; build it with "
                                 "`gransim build-assets` or set acoustics.response=synthetic")
     out = {}
     for c in channels:
         out[c] = measured_ir(model, cfg, rng) if model is not None else synthetic_ir(cfg, rng)
-    info = {"response": cfg.response,
+        if eq is not None:
+            out[c] = apply_eq(out[c], cfg.fs, eq)
+    info = {"response": cfg.response, "eq": eq is not None,
             "response_file": model["path"] if model is not None else None,
             "drr": float(cfg.drr or model["drr"]) if model is not None else None,
             "ring_tau_s": float(cfg.ring_tau or model["tau"]) if model is not None else None}

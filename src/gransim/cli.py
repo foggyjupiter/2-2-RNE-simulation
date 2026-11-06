@@ -190,6 +190,27 @@ def cmd_build_assets(args: argparse.Namespace) -> None:
     print(json.dumps(info, indent=2, default=str))
 
 
+def cmd_sweep(args: argparse.Namespace) -> None:
+    """Generate (or resume) a dataset from a sweep spec."""
+    from gransim.sweep.runner import run_sweep, write_manifest
+
+    if args.manifest_only:
+        print(f"{write_manifest(args.out)} rows")
+        return
+    print(run_sweep(args.spec, args.out, workers=args.workers, limit=args.limit,
+                    time_budget=args.budget, progress=lambda m: print(m, flush=True)))
+
+
+def cmd_upload(args: argparse.Namespace) -> None:
+    """Upload finished runs of a sweep folder to a Hugging Face dataset repo."""
+    from gransim.sweep.hf_upload import upload
+
+    extra = {}
+    if args.card:
+        extra["README.md"] = args.card
+    print(f"{upload(args.out, args.repo, extra_files=extra)} files uploaded")
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="gransim", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -256,6 +277,21 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--sparse-count", type=int, default=5)
     p.add_argument("--noise-count", type=int, default=0)
     p.set_defaults(func=cmd_build_assets)
+
+    p = sub.add_parser("sweep", help="dataset generation from a sweep spec (resumable)")
+    p.add_argument("spec", help="sweep YAML, e.g. configs/sweep_material.yaml")
+    p.add_argument("--out", required=True)
+    p.add_argument("--workers", type=int, default=None)
+    p.add_argument("--limit", type=int, default=None, help="max jobs to start in this call")
+    p.add_argument("--budget", type=float, default=None, help="stop submitting after N seconds")
+    p.add_argument("--manifest-only", action="store_true", help="just rebuild the manifest")
+    p.set_defaults(func=cmd_sweep)
+
+    p = sub.add_parser("upload", help="incremental upload of a sweep folder to Hugging Face")
+    p.add_argument("out", help="sweep output folder")
+    p.add_argument("--repo", required=True, help="dataset repo id, e.g. user/name")
+    p.add_argument("--card", help="dataset card (README.md) to upload")
+    p.set_defaults(func=cmd_upload)
 
     args = ap.parse_args(argv)
     args.func(args)

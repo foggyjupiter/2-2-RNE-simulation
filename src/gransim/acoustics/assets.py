@@ -112,8 +112,12 @@ def _psd(segs: list[np.ndarray], fs: int) -> np.ndarray:
     return acc / max(len(segs), 1)
 
 
-def measure_response(clips: list[str], tau_ref: float, clip_level: float = 0.98) -> dict:
-    """Direct/tail spectra, ring decay and direct-to-reverberant ratio from sparse clips."""
+def measure_response(clips: list[str], tau_ref: float, clip_level: float = 0.98,
+                     noise_clips: list[str] | None = None) -> dict:
+    """Direct/tail spectra, ring decay and direct-to-reverberant ratio from sparse clips.
+
+    ``noise_clips`` (empty box) give the background spectrum, subtracted from the tail.
+    """
     direct_segs, tail_segs, taus, drrs, noise_segs = [], [], [], [], []
     fs0 = None
     for c in clips:
@@ -164,6 +168,12 @@ def measure_response(clips: list[str], tau_ref: float, clip_level: float = 0.98)
     H = half_sine_spectrum(f, tau_ref)
     P_dir = P_dir / np.maximum(H, 0.25) ** 2
     P_tail = _psd([s[i:i + NFFT] for s in tail_segs for i in range(0, len(s) - NFFT, NFFT // 2)], fs)
+    if noise_clips:
+        nsegs = []
+        for c in noise_clips:
+            _, xn = read_wav(c)
+            nsegs += [xn[i:i + NFFT] for i in range(0, len(xn) - NFFT, NFFT // 2)]
+        P_tail = np.maximum(P_tail - _psd(nsegs, fs), 1e-3 * P_tail.max())
     return {"fs": fs, "f": f, "direct_psd": P_dir / P_dir.sum(), "tail_psd": P_tail / P_tail.sum(),
             "tau": float(np.median(taus)), "tau_spread": [float(np.percentile(taus, 25)),
                                                          float(np.percentile(taus, 75))],
@@ -199,7 +209,8 @@ def build_assets(recordings: str | Path, out_root: str | Path, rpm: float, tau_r
         sort_keys=False, allow_unicode=True))
 
     clips = sorted(glob.glob(str(recordings / f"{sparse_count}-*.wav")))
-    m = measure_response(clips, tau_ref)
+    noise_clips = sorted(glob.glob(str(recordings / f"{noise_count}-*.wav")))
+    m = measure_response(clips, tau_ref, noise_clips=noise_clips)
     np.savez_compressed(ir_dir / "response_model.npz", f=m["f"], direct_psd=m["direct_psd"],
                         tail_psd=m["tail_psd"], fs=m["fs"], tau=m["tau"], drr=m["drr"],
                         tau_ref=tau_ref)

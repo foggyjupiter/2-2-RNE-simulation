@@ -37,6 +37,9 @@ def hertz_contact_time(m_eff, R_eff, E_eff, v, v_floor: float = 1e-3, tau_max: f
 def event_contact_times(events: np.ndarray, cfg: SimConfig) -> np.ndarray:
     """Acoustic τ_c [s] per event from real moduli (particle–particle or particle–wall)."""
     p, c = cfg.particles.material, cfg.container.material
+    if cfg.acoustics.particle_youngs_modulus is not None:
+        p = Material(youngs_modulus=cfg.acoustics.particle_youngs_modulus,
+                     poisson_ratio=p.poisson_ratio)
     E_pp = effective_modulus(p, p)
     E_pw = effective_modulus(p, c)
     E = np.where(events["kind"] == 1, E_pw, E_pp)

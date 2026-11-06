@@ -241,6 +241,10 @@ class AcousticConfig(_Strict):
         "hertz_real", description="Acoustic contact time: Hertz with the real moduli and each "
                                   "event's impact speed, or a fixed value")
     tau_fixed: float = Field(5.0e-5, gt=0, description="τ_c for tau_mode=fixed [s]")
+    particle_youngs_modulus: Optional[float] = Field(
+        None, gt=0, description="Real particle E [Pa] for the acoustic τ_c only; None = "
+                                "particles.material. Lets a sweep vary the true modulus "
+                                "without changing the (relaxed, validated) dynamic stiffness")
     band_split_hz: float = Field(
         1500.0, gt=0, description="Crossover between the wall-force component (below) and the "
                                   "impact-pulse component (above) [Hz]; complementary "
@@ -258,11 +262,18 @@ class AcousticConfig(_Strict):
         "measured", description="measured = statistical model from first-study recordings "
                                 "(assets/impulse_response/response_model.npz); synthetic = modes")
     response_file: Optional[str] = Field(None, description="Override path of the response model")
-    drr: Optional[float] = Field(None, gt=0, description="Direct-to-reverberant energy ratio; "
-                                                         "None = measured value")
+    drr: Optional[float] = Field(
+        6.0, gt=0, description="Direct-to-reverberant energy ratio of the response. Default "
+                               "calibrated against the first-study recordings (sim2real: "
+                               "kurtosis, clipping and high-band level); None = the value "
+                               "estimated directly from isolated onsets (0.19, biased low "
+                               "because clipped onsets are excluded)")
     ring_tau: Optional[float] = Field(None, gt=0, description="Ring/reverb decay time constant "
                                                               "[s]; None = measured value")
     ir_length_s: float = Field(0.35, gt=0, description="Length of the drawn impulse responses [s]")
+    eq: bool = Field(True, description="Apply the sim2real spectral equaliser "
+                                       "(assets/impulse_response/eq.npz) if present; one "
+                                       "N-independent correction for all clips")
     synthetic_modes: list[tuple[float, float, float]] = Field(
         [(5900.0, 60.0, 0.3), (7400.0, 60.0, 0.4), (9400.0, 80.0, 1.0)],
         description="synthetic response: (frequency [Hz], Q, relative amplitude) per mode")

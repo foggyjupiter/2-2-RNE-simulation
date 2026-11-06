@@ -82,7 +82,8 @@ def _compose(clean: np.ndarray, noise: np.ndarray, gain: float, clip_level: floa
 
 
 def run_sim2real(rec_dir, run_dirs: dict, f_shake: float, n_render: int = 2,
-                 gains=None, acoustics_overrides: dict | None = None, seed: int = 0) -> dict:
+                 gains=None, acoustics_overrides: dict | None = None, seed: int = 0,
+                 eq_max_n: int = 20) -> dict:
     """Compare recordings ``rec_dir/{N}-*.wav`` with runs ``run_dirs[N] = [paths]``.
 
     The audio of each run is rendered once without gain/noise/clipping; the microphone
@@ -114,7 +115,8 @@ def run_sim2real(rec_dir, run_dirs: dict, f_shake: float, n_render: int = 2,
             for k in range(n_render):
                 r = render(cfg, ev, wf, win, seed=int(rng.integers(1 << 30)), acoustics=ac)
                 nz, _ = draw_noise(ac, 60 * f_shake, len(r.clean), rng)
-                clean[N].append((r.clean, nz, r.fs))
+                g_n = (acoustics_overrides or {}).get("noise_gain", 1.0)
+                clean[N].append((r.clean, g_n * nz, r.fs))
     # calibrate gain on log RMS (clean + noise, before clipping matters little at low N)
     if gains is None:
         gains = np.geomspace(0.05, 5.0, 61)
@@ -128,8 +130,37 @@ def run_sim2real(rec_dir, run_dirs: dict, f_shake: float, n_render: int = 2,
         if err < best_err:
             best, best_err = float(g), err
     table = {}
+    eq_terms = []
     for N in clean:
-        sim = [features(_compose(c, n, best, 1.0), fs, f_shake) for c, n, fs in clean[N]]
+        comp = [_compose(c, n, best, 1.0) for c, n, fs in clean[N]]
+        sim = [features(y, clean[N][0][2], f_shake) for y in comp]
         table[N] = compare(real[N], sim)
+        if N <= eq_max_n:
+            fr, Pr = _mean_psd([read_wav(f)[1] for f in sorted(glob.glob(str(Path(rec_dir) / f"{N}-*.wav")))],
+                               clean[N][0][2])
+            _, Ps = _mean_psd(comp, clean[N][0][2])
+            eq_terms.append(10 * np.log10(Pr / Ps))
+    eq = None
+    if eq_terms:
+        eq = {"f": fr, "gain_db": _third_octave_smooth(fr, np.mean(eq_terms, axis=0))}
     return {"mic_gain": best, "log_rms_rmse": float(np.sqrt(best_err / len(clean))),
-            "table": table}
+            "table": table, "eq": eq}
+
+
+def _mean_psd(sigs, fs):
+    acc = None
+    for y in sigs:
+        f, P = signal.welch(y, fs, nperseg=4096)
+        acc = P if acc is None else acc + P
+    return f, acc / len(sigs)
+
+
+def _third_octave_smooth(f, g_db, f_min=100.0):
+    out = np.zeros_like(g_db)
+    for k, fk in enumerate(f):
+        if fk < f_min:
+            continue
+        m = (f >= fk / 2 ** (1 / 6)) & (f <= fk * 2 ** (1 / 6))
+        out[k] = g_db[m].mean()
+    out[f < f_min] = out[np.argmax(f >= f_min)]
+    return out
