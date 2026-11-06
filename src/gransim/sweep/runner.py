@@ -169,13 +169,22 @@ def run_job(job: Job, spec: dict, out: str) -> dict:
 
 def run_sweep(spec_path: str | Path, out: str | Path, workers: int | None = None,
               limit: int | None = None, time_budget: float | None = None,
-              progress=print) -> dict:
-    """Run (or resume) a sweep. ``limit`` caps the number of jobs started this call."""
+              progress=print, shard: tuple[int, int] | None = None) -> dict:
+    """Run (or resume) a sweep. ``limit`` caps the number of jobs started this call.
+
+    ``shard`` = (k, n): only jobs whose index in the full job list ≡ k (mod n), so n
+    machines can share one sweep; each job's parameters, seeds and split are the same as
+    in an unsharded run (they depend on the spec only)."""
     spec = load_spec(spec_path)
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "sweep_spec.yaml").write_text(yaml.safe_dump(spec, sort_keys=False, allow_unicode=True))
     jobs = build_jobs(spec)
+    if shard is not None:
+        k, n = shard
+        if not 0 <= k < n:
+            raise ValueError(f"shard {k}/{n}: need 0 <= k < n")
+        jobs = [j for i, j in enumerate(jobs) if i % n == k]
     todo = [j for j in jobs if not (out / "runs" / j.run_id / "done.json").exists()]
     # interleave large and small N so workers stay balanced and early stops are representative
     if limit is not None:

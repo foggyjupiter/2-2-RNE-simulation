@@ -36,7 +36,8 @@ def _pending(out: Path, done_set: set[str]) -> list[str]:
 
 
 def upload(out: str | Path, repo_id: str, batch: int = 800, max_retries: int = 4,
-           extra_files: dict | None = None, log=print, prefix: str = "") -> int:
+           extra_files: dict | None = None, log=print, prefix: str = "",
+           manifest: bool = True, manifest_only: bool = False) -> int:
     """Upload new files in batches; returns the number of files uploaded.
 
     ``prefix`` puts the whole folder under a sub-directory of the repo (e.g. a
@@ -53,7 +54,10 @@ def upload(out: str | Path, repo_id: str, batch: int = 800, max_retries: int = 4
     n_rows = write_manifest(out)
     if n_rows:
         (out / "metadata.csv").write_bytes((out / "manifest.csv").read_bytes())
-    todo = _pending(out, done_set)
+    # manifest=False: one shard of a sweep shared by several machines — upload its files but
+    # not a manifest that would list only this shard (the merge step writes the full one).
+    # manifest_only=True: only (re)write the manifest files (after a merge).
+    todo = [] if manifest_only else _pending(out, done_set)
     n = 0
     for i in range(0, len(todo), batch):
         chunk = todo[i:i + batch]
@@ -63,13 +67,48 @@ def upload(out: str | Path, repo_id: str, batch: int = 800, max_retries: int = 4
             fh.write("\n".join(chunk) + "\n")
         n += len(chunk)
         log(f"uploaded {n}/{len(todo)}")
-    meta = ["metadata.csv", "manifest.csv", "manifest.jsonl", "sweep_spec.yaml"]
+    meta = ["metadata.csv", "manifest.csv", "manifest.jsonl", "sweep_spec.yaml"] if manifest else []
     ops = [CommitOperationAdd(path_in_repo=prefix + m, path_or_fileobj=str(out / m))
            for m in meta if (out / m).exists()]
     for dst, src in (extra_files or {}).items():
         ops.append(CommitOperationAdd(path_in_repo=dst, path_or_fileobj=str(src)))
     if ops:
         _commit(api, repo_id, ops, f"update manifest ({n_rows} clips)", max_retries, log)
+    return n
+
+
+def fetch_remote(out: str | Path, repo_id: str, prefix: str, log=print) -> int:
+    """Merge step of a sharded sweep: download every shard's ``done.json`` and audio under
+    ``prefix`` into ``out`` (layout of a local sweep, prefix stripped), mark them as
+    uploaded, and rebuild the full manifest. Returns the number of rows."""
+    import shutil
+    import tempfile
+
+    from huggingface_hub import snapshot_download
+
+    from gransim.sweep.runner import write_manifest
+
+    out = Path(out)
+    prefix = prefix.rstrip("/") + "/"
+    with tempfile.TemporaryDirectory(dir=out.parent if out.parent.exists() else None) as tmp:
+        snapshot_download(repo_id, repo_type="dataset", local_dir=tmp,
+                          allow_patterns=[f"{prefix}runs/*/done.json", f"{prefix}audio/**"])
+        src = Path(tmp) / prefix
+        got = []
+        for p in sorted(src.rglob("*")):
+            if p.is_file():
+                rel = p.relative_to(src)
+                dst = out / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if not dst.exists():
+                    shutil.move(str(p), dst)
+                got.append(rel.as_posix())
+    track = out / ".hf_uploaded.txt"
+    have = set(track.read_text().split()) if track.exists() else set()
+    with open(track, "a", encoding="utf-8") as fh:
+        fh.write("".join(f + "\n" for f in got if f not in have))
+    n = write_manifest(out)
+    log(f"fetched {len(got)} files from {repo_id}/{prefix} → {out}; manifest {n} rows")
     return n
 
 

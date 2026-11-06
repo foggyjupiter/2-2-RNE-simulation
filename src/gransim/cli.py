@@ -211,8 +211,12 @@ def cmd_sweep(args: argparse.Namespace) -> None:
     if args.manifest_only:
         print(f"{write_manifest(args.out)} rows")
         return
+    shard = None
+    if args.shard:
+        k, n = (int(v) for v in args.shard.split("/"))
+        shard = (k, n)
     print(run_sweep(args.spec, args.out, workers=args.workers, limit=args.limit,
-                    time_budget=args.budget, progress=lambda m: print(m, flush=True)))
+                    time_budget=args.budget, progress=lambda m: print(m, flush=True), shard=shard))
 
 
 def cmd_upload(args: argparse.Namespace) -> None:
@@ -223,7 +227,12 @@ def cmd_upload(args: argparse.Namespace) -> None:
     if args.card:
         extra["README.md"] = args.card
     prefix = (args.prefix.rstrip("/") + "/") if args.prefix else ""
-    print(f"{upload(args.out, args.repo, extra_files=extra, prefix=prefix)} files uploaded")
+    if args.fetch:
+        from gransim.sweep.hf_upload import fetch_remote
+        fetch_remote(args.out, args.repo, prefix)
+    n = upload(args.out, args.repo, extra_files=extra, prefix=prefix,
+               manifest=not args.no_manifest, manifest_only=args.manifest_only or args.fetch)
+    print(f"{n} files uploaded")
 
 
 def cmd_rerender(args: argparse.Namespace) -> None:
@@ -348,6 +357,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--limit", type=int, default=None, help="max jobs to start in this call")
     p.add_argument("--budget", type=float, default=None, help="stop submitting after N seconds")
     p.add_argument("--manifest-only", action="store_true", help="just rebuild the manifest")
+    p.add_argument("--shard", help="K/N: run only jobs with index ≡ K mod N (machines sharing a sweep)")
     p.set_defaults(func=cmd_sweep)
 
     p = sub.add_parser("upload", help="incremental upload of a sweep folder to Hugging Face")
@@ -355,6 +365,12 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--repo", required=True, help="dataset repo id, e.g. user/name")
     p.add_argument("--card", help="dataset card (README.md) to upload")
     p.add_argument("--prefix", help="sub-folder of the repo to upload into (e.g. bb_fixed)")
+    p.add_argument("--no-manifest", action="store_true",
+                   help="shard of a shared sweep: upload files, not the (partial) manifest")
+    p.add_argument("--manifest-only", action="store_true", help="only upload the manifest files")
+    p.add_argument("--fetch", action="store_true",
+                   help="merge a sharded sweep: download all shards' done.json + audio under "
+                        "--prefix into OUT, rebuild and upload the full manifest")
     p.set_defaults(func=cmd_upload)
 
     p = sub.add_parser("rerender", help="re-render a sweep's audio with other acoustic settings")

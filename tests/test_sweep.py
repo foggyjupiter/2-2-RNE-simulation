@@ -134,3 +134,21 @@ def test_sweep_with_click_model_axis(tmp_path):
     for r in rows:
         _, x = read_wav(out / r["file_name"])
         assert np.isfinite(x).all() and np.abs(x).max() > 0
+
+
+def test_sharded_sweep_covers_every_job_once(tmp_path):
+    import yaml
+
+    from gransim.sweep.runner import run_sweep
+    sp = {"base": "configs/experiment_replica.yaml",
+          "overrides": {"contact": {"model": "hertz"}, "time": {"settle_time": 0.2, "record_time": 0.45}},
+          "seed": 9, "n_dynamics": 3, "renders_per_run": 1, "sampling": "random",
+          "conditions": {"key": "excitation.rpm", "values": [372, 450], "jitter": 0.04},
+          "axes": {"particles.count": {"dist": "int_uniform", "low": 3, "high": 4}}}
+    (tmp_path / "spec.yaml").write_text(yaml.safe_dump(sp))
+    ids = []
+    for k in range(3):
+        out = tmp_path / f"s{k}"
+        run_sweep(tmp_path / "spec.yaml", out, workers=1, progress=lambda m: None, shard=(k, 3))
+        ids += [p.parent.name for p in (out / "runs").glob("*/done.json")]
+    assert sorted(ids) == sorted(j.run_id for j in build_jobs(sp))
