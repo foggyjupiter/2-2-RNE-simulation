@@ -5,6 +5,10 @@ Normal force (force magnitude along the contact normal, never tensile)::
     linear : F_n = k_n δ + c_n δ̇,              c_n = 2 ζ sqrt(m_eff k_n)
     hertz  : F_n = k_h δ^1.5 + c_h δ^0.25 δ̇,     c_h = α sqrt(m_eff k_h),
              k_h = (4/3) E* sqrt(R_eff)
+    hertz, viscoelastic law (Kuwabara-Kono / Brilliantov et al. 1996):
+             F_n = k_h δ^1.5 + (3/2) A k_h δ^0.5 δ̇
+             e depends on the impact speed through γ = A (k_h/m_eff)^(2/5) v^(1/5) only,
+             so one dimensionless table e(γ) serves every pair and speed.
 
 ``δ`` is the overlap [m] and ``δ̇`` the approach rate [m/s]. Because the force
 is clipped at zero, the textbook formula relating ζ to the restitution
@@ -32,6 +36,7 @@ if TYPE_CHECKING:
 
 MODEL_LINEAR = 0
 MODEL_HERTZ = 1
+MODEL_HERTZ_VISCO = 2   # Hertz elasticity, viscoelastic (velocity-dependent e) damping
 
 
 # --------------------------------------------------------------------------
@@ -77,6 +82,8 @@ def _single_collision_e(model: int, damp: float, dt: float, offset: float) -> fl
             return -dd
         if model == MODEL_LINEAR:
             f = d + 2.0 * damp * dd
+        elif model == MODEL_HERTZ_VISCO:
+            f = d * math.sqrt(d) + 1.5 * damp * math.sqrt(d) * dd
         else:
             f = d * math.sqrt(d) + damp * math.sqrt(math.sqrt(d)) * dd
         if f < 0.0:
@@ -171,7 +178,8 @@ def derive_contact_params(cfg: "SimConfig") -> dict:
     R_pp, R_pw = 0.5 * R, R
     Ep, nup = p.material.youngs_modulus, p.material.poisson_ratio
     Ew, nuw = cfg.container.material.youngs_modulus, cfg.container.material.poisson_ratio
-    out: dict = {"model": MODEL_LINEAR if c.model == "linear" else MODEL_HERTZ}
+    out: dict = {"model": MODEL_LINEAR if c.model == "linear" else
+                 (MODEL_HERTZ_VISCO if c.restitution_law == "viscoelastic" else MODEL_HERTZ)}
 
     if c.model == "linear":
         tc_pp = tc_pw = c.contact_time
@@ -200,10 +208,18 @@ def derive_contact_params(cfg: "SimConfig") -> dict:
             ratio = dt / tc
             if model == MODEL_LINEAR:
                 damp[key] = damping_for_restitution(e, model, ratio)
+                scat[key] = restitution_scatter(e, model, damp[key], ratio)
+            elif model == MODEL_HERTZ_VISCO:
+                # γ at the reference speed → A [s] for this pair's k_h and m_eff
+                g_ref = damping_for_restitution(e, model, 1e-3)
+                m_eff, R_eff = (m_pp, R_pp) if key == "pp" else (m_pw, R_pw)
+                kh = (4.0 / 3.0) * out["E_" + key] * math.sqrt(R_eff)
+                damp[key] = g_ref / ((kh / m_eff) ** 0.4 * c.restitution_ref_speed ** 0.2)
+                scat[key] = restitution_scatter(e, model, g_ref, ratio)
             else:
                 # Hertz restitution is velocity independent in the continuum limit
                 damp[key] = damping_for_restitution(e, model, 1e-3)
-            scat[key] = restitution_scatter(e, model, damp[key], ratio)
+                scat[key] = restitution_scatter(e, model, damp[key], ratio)
         worst = max(scat.values())
         if cfg.time.dt is not None or worst <= cfg.time.max_restitution_scatter or safety > 640:
             break
@@ -256,7 +272,10 @@ def contact_force(nx, ny, nz, delta, vx, vy, vz, m_eff, R_eff,
         kh = (4.0 / 3.0) * e_star * math.sqrt(R_eff)
         sd = math.sqrt(delta)
         fs = kh * delta * sd
-        c = damp * math.sqrt(m_eff * kh) * math.sqrt(sd)  # includes δ^0.25
+        if model == 2:   # viscoelastic: damp = A [s]
+            c = 1.5 * damp * kh * sd
+        else:            # Tsuji: damp = α
+            c = damp * math.sqrt(m_eff * kh) * math.sqrt(sd)  # includes δ^0.25
         fn = fs + c * ddot
         kt = kt_ratio * 1.5 * kh * sd
         en = 0.4 * kh * delta * delta * sd

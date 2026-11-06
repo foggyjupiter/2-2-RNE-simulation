@@ -120,6 +120,17 @@ class ContactConfig(_Strict):
         description="hertz model only: multiply real Young's moduli by this factor "
                     "(1 = real stiffness). Default 0.25 = softest value that passed the "
                     "stiffness convergence test (contact time ≈ 1.7× real).")
+    restitution_law: Literal["constant", "viscoelastic"] = Field(
+        "constant",
+        description="hertz model only. constant: Tsuji damping, e independent of the impact "
+                    "speed. viscoelastic: Kuwabara-Kono / Brilliantov damping "
+                    "F_d = (3/2) A k_h sqrt(δ) δ̇, so e rises towards 1 for slow impacts "
+                    "(e = f(γ_ref·(v/v_ref)^(1/5))); restitution_pp/pw then give e at "
+                    "restitution_ref_speed. Dense beds collide mostly slowly, sparse ones hit "
+                    "the walls fast, so this changes how collective a dense bed is.")
+    restitution_ref_speed: float = Field(
+        0.5, gt=0, description="viscoelastic law: impact speed [m/s] at which restitution_pp/pw "
+                               "hold (≈ the shaker's peak speed A·ω at 372 rpm)")
     tangential_stiffness_ratio: float = Field(
         2.0 / 7.0, gt=0, description="k_t / k_n (for Hertz: k_t / (dF_n/dδ))")
     tangential_damping_ratio: float = Field(0.5, ge=0, description="c_t / c_n")
@@ -129,6 +140,12 @@ class ContactConfig(_Strict):
                     "and top walls (wavelengths 0.5-2 d). Stands for BB asphericity, wall "
                     "unevenness and shaker wobble; breaks the unphysical lockstep bouncing "
                     "of sparse layers. 0 = perfectly flat walls.")
+
+    @model_validator(mode="after")
+    def _law_needs_hertz(self):
+        if self.restitution_law == "viscoelastic" and self.model != "hertz":
+            raise ValueError("contact.restitution_law=viscoelastic needs contact.model=hertz")
+        return self
 
     @property
     def stiffness_mode(self) -> str:

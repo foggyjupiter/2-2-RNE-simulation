@@ -137,3 +137,34 @@ def test_resting_particle_stays_put(model):
         zs.append(sim.x[0, 2])
     assert np.ptp(zs) < 1e-7
     assert abs(sim.v[0, 2]) < 1e-5
+
+
+def test_viscoelastic_restitution_rises_for_slow_impacts():
+    """Viscoelastic law: e = e_ref at the reference speed, closer to 1 for slower impacts,
+    following the dimensionless table e(γ ∝ v^(1/5))."""
+    from gransim.dynamics.contact import MODEL_HERTZ_VISCO, restitution_table
+    grid, eg = restitution_table(MODEL_HERTZ_VISCO, 1e-3)
+    g_ref = damping_for_restitution(0.8, MODEL_HERTZ_VISCO, 1e-3)
+
+    def e_at(v_ratio):
+        return float(np.interp(g_ref * v_ratio ** 0.2, grid, eg))
+
+    ratios = []
+    for v0 in (0.5, 0.05):
+        cfg = still_config(particles={"count": 1}, gravity=0.0,
+                           contact={"model": "hertz", "restitution_law": "viscoelastic", "restitution_pw": 0.8,
+                                    "restitution_ref_speed": 0.5})
+        R = cfg.particles.diameter / 2
+        sim = Simulation(cfg, positions=np.array([[0.025, 0.025, R * 1.02]]), warn=False)
+        sim.v[0] = [0.0, 0.0, -v0]
+        (v_in, _), (v_out, _) = run_until_separated(sim, lambda s: s.x[0, 2] < R)
+        ratios.append(-v_out[0, 2] / v_in[0, 2])
+    assert ratios[0] == pytest.approx(0.8, rel=0.03)
+    assert ratios[1] == pytest.approx(e_at(0.1), rel=0.03)
+    assert ratios[1] > ratios[0] + 0.03
+
+
+def test_viscoelastic_needs_hertz():
+    from gransim.config import ContactConfig
+    with pytest.raises(ValueError):
+        ContactConfig(model="linear", restitution_law="viscoelastic")
