@@ -65,6 +65,15 @@
 | V9_nosig_blind_s1 | V | v3_nosig | 6.8 | 7.2 | 13.5 | +7.1 | 22% | 0.66 | 5.07 | -0.42 |
 | V10_nosig_dann_s1 | V | v3_nosig | 7.3 | 7.3 | 10.2 | +6.0 | 27% | 0.62 | 6.17 | -0.43 |
 | V11_nosig_real_labeled_1 | V | v3_nosig | 7.1 | 7.1 | 9.2 | +3.1 | 39% | 0.65 | 5.79 | -0.42 |
+| Q1_cv_real_labeled_5_f1 | Q | v3_nosig | 6.8 | 7.2 | 6.1 | -0.8 | 53% | 0.65 | 5.95 | -0.41 |
+| Q2_cv_real_labeled_5_f2 | Q | v3_nosig | 6.6 | 6.8 | 6.5 | +1.4 | 47% | 0.67 | 5.96 | -0.40 |
+| Q3_cv_dann_f1 | Q | v3_nosig | 7.6 | 8.5 | 12.5 | +7.4 | 20% | 0.53 | 6.04 | -0.43 |
+| Q4_cv_dann_f2 | Q | v3_nosig | 7.1 | 7.2 | 11.4 | +6.7 | 18% | 0.65 | 5.86 | -0.39 |
+| Q5_cv_dann_known_size_weight_f1 | Q | v3_nosig | 6.0 | 7.0 | 11.1 | +7.1 | 25% | -0.03 | 6.10 | -0.07 |
+| Q6_cv_dann_known_size_weight_f2 | Q | v3_nosig | 6.2 | 7.0 | 11.0 | +3.4 | 17% | -0.07 | 5.75 | -0.17 |
+| U1_merged_blind | U | merged_nosig | 7.5 | 8.6 | 16.8 | +12.8 | 19% | 0.71 | 5.15 | -0.45 |
+| U2_merged_dann | U | merged_nosig | 7.8 | 9.1 | 9.5 | -0.8 | 38% | 0.64 | 6.95 | -0.42 |
+| U3_merged_dann_known_size_weight | U | merged_nosig | 6.5 | 7.7 | 8.5 | -2.5 | 40% | -7.01 | 3.20 | -0.09 |
 | H9_nosig_set_per_set | H | multi_rpm_nosig | 6.6 | 7.3 | 11.2 | +4.4 | 35% | 0.76 | – | -0.38 |
 | H10_nosig_set_known_size_weight | H | multi_rpm_nosig | 5.7 | 5.7 | 15.5 | +10.4 | 28% | -0.78 | – | -0.08 |
 | H11_nosig_set_dann | H | multi_rpm_nosig | 6.9 | 6.9 | 9.1 | +5.9 | 42% | 0.76 | – | -0.37 |
