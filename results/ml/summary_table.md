@@ -74,6 +74,9 @@
 | U1_merged_blind | U | merged_nosig | 7.5 | 8.6 | 16.8 | +12.8 | 19% | 0.71 | 5.15 | -0.45 |
 | U2_merged_dann | U | merged_nosig | 7.8 | 9.1 | 9.5 | -0.8 | 38% | 0.64 | 6.95 | -0.42 |
 | U3_merged_dann_known_size_weight | U | merged_nosig | 6.5 | 7.7 | 8.5 | -2.5 | 40% | -7.01 | 3.20 | -0.09 |
+| L1_lowe_blind | L | v3_lowe | 7.2 | 7.1 | 11.6 | +5.7 | 21% | 0.69 | 5.06 | -0.45 |
+| L2_lowe_dann | L | v3_lowe | 7.3 | 6.8 | 12.0 | +8.8 | 31% | 0.66 | 7.38 | -0.38 |
+| L3_lowe_dann_known_size_weight | L | v3_lowe | 5.5 | 5.3 | 7.8 | -0.9 | 44% | -1.81 | 5.00 | +0.02 |
 | H9_nosig_set_per_set | H | multi_rpm_nosig | 6.6 | 7.3 | 11.2 | +4.4 | 35% | 0.76 | – | -0.38 |
 | H10_nosig_set_known_size_weight | H | multi_rpm_nosig | 5.7 | 5.7 | 15.5 | +10.4 | 28% | -0.78 | – | -0.08 |
 | H11_nosig_set_dann | H | multi_rpm_nosig | 6.9 | 6.9 | 9.1 | +5.9 | 42% | 0.76 | – | -0.37 |
