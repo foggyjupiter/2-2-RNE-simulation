@@ -16,7 +16,10 @@ MODELS = [("V1_nosig_blind", "블라인드, 한 속도 (V1)"),
           ("V2_nosig_known_size_weight", "크기·무게 앎 (V2)"),
           ("V4_nosig_dann", "DANN (V4)"),
           ("V8_nosig_dann_known_size_weight", "DANN + 크기·무게 (V8)"),
-          ("V7_nosig_real_labeled_5", "실측 정답 5개/개수 (V7)")]
+          ("V7_nosig_real_labeled_5", "실측 정답 5개/개수 (V7)"),
+          ("U1_merged_blind", "블라인드, 클립 합침 (U1)"),
+          ("U2_merged_dann", "DANN, 클립 합침 (U2)"),
+          ("U3_merged_dann_known_size_weight", "DANN + 크기·무게, 클립 합침 (U3)")]
 
 
 def stats(P):
