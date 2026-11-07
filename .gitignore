@@ -10,3 +10,4 @@ dist/
 .venv/
 results/**/cache/
 datasets/
+docs/report_build/
