@@ -79,7 +79,42 @@ def fig_nosig_real():
     plt.close(fig)
 
 
+
+
+def fig_phase_collapse():
+    """상 지표(위상 집중도) vs N 과 vs εF: 물성이 달라도 εF 하나로 정리된다."""
+    import pandas as pd
+    from matplotlib.colors import LinearSegmentedColormap
+    m = pd.read_csv(ROOT / "datasets" / "v3" / "manifest.csv").drop_duplicates("run_id")
+    m = m[m.N > 0]
+    d = m.particle_diameter_m.values
+    F = m.N.values * d ** 2 / 0.0025
+    eps = 0.5 * ((1 - m.restitution_pp.values ** 2) + (1 - m.restitution_pw.values ** 2))
+    y = m.gt_phase_concentration.values
+    cmap = LinearSegmentedColormap.from_list("blue_seq", ["#cfe0f6", "#2a78d6", "#0d3a73"])
+    fig, axs = plt.subplots(1, 2, figsize=(8.6, 3.3), facecolor=SURF, sharey=True)
+    for ax, x, xl, title in [(axs[0], m.N.values, "개수 N", "개수로 보면 (R² 0.66)"),
+                             (axs[1], eps * F, "εF  (층 수 F = N d²/A × 비탄성 ε = 1 - e², 두 반발계수 평균)", "εF로 보면 (R² 0.96)")]:
+        _axes(ax)
+        ax.yaxis.grid(True, color=GRID, lw=0.8)
+        sc = ax.scatter(x, y, c=d * 1000, cmap=cmap, s=7, lw=0, alpha=0.85)
+        ax.set_xlabel(xl, color=INK2)
+        ax.set_title(title, loc="left", color=INK, fontsize=10)
+    axs[1].set_xscale("log")
+    from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
+    axs[1].xaxis.set_major_locator(LogLocator(base=10, subs=(1.0, 3.0)))
+    axs[1].xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    axs[1].xaxis.set_minor_formatter(NullFormatter())
+    axs[0].set_ylabel("위상 집중도 (시뮬레이션 정답)", color=INK2)
+    cb = fig.colorbar(sc, ax=axs, shrink=0.85, pad=0.02)
+    cb.set_label("지름 (mm)", color=INK2)
+    cb.outline.set_visible(False)
+    fig.savefig(OUT / "fig_phase_collapse.png", dpi=200, facecolor=SURF, bbox_inches="tight")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     fig_cause_sigma()
     fig_nosig_real()
+    fig_phase_collapse()
