@@ -1,0 +1,6 @@
+N,gamma_c_experiment,gamma_c_kurtosis_total_hp,diff_kurtosis_total_hp,gamma_c_sustained_fraction,diff_sustained_fraction,gamma_c_phase_concentration_impulse,diff_phase_concentration_impulse
+100,1.25,1.881,0.6306,1.756,0.5065,3.237,1.987
+150,1.65,1.792,0.142,1.762,0.1116,3.383,1.733
+200,2.6,1.819,-0.7814,1.777,-0.8225,3.454,0.8542
+250,4.6,1.919,-2.681,1.835,-2.765,3.664,-0.9364
+300,7,2.346,-4.654,2.052,-4.948,2.397,-4.603
