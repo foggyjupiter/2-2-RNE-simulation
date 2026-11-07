@@ -15,33 +15,35 @@ from gransim.analysis.sim2real import run_sim2real  # noqa: E402
 
 REC = "/tmp/claude-0/-home-user-2-2-RNE-simulation/04e80129-3b37-5580-b51d-630d931e5d63/scratchpad/cnn1/data-all"
 RUNS = ROOT / "runs" / "sync_probe"
-SETS = ["base", "r0", "r0.2", "pw0.5", "pp0.8", "mu0.5"]
+SETS = ["base", "r0", "r0.2", "pw0.6", "pw0.5", "pw0.4", "pp0.8", "mu0.5"]
 NS = [10, 20, 35, 100]
+NS_EXTRA = [5, 50]                   # only where available (base, pw0.5)
 FEATS = ["fold_peak_to_mean", "onset_rate", "kurtosis", "rms"]
 
 
 def main():
     out = []
     for s in SETS:
-        dirs = {n: [str(RUNS / f"{s}_N{n}")] for n in NS if (RUNS / f"{s}_N{n}" / "summary.json").exists()}
-        if len(dirs) < len(NS):
+        dirs = {n: [str(RUNS / f"{s}_N{n}")] for n in NS + NS_EXTRA if (RUNS / f"{s}_N{n}" / "summary.json").exists()}
+        if not all(n in dirs for n in NS):
             print("skip", s, sorted(dirs))
             continue
         rep = run_sim2real(REC, dirs, 6.2, n_render=3,
                            acoustics_overrides={"impact_gain_sigma": 0.0, "impact_source": "synthetic"})
         tab = {str(n): {r["feature"]: {"real": r["real_mean"], "sim": r["sim_mean"]} for r in rep["table"][n]
-                        if r["feature"] in FEATS} for n in NS}
+                        if r["feature"] in FEATS} for n in dirs}
         fe = np.mean([abs(tab[str(n)]["fold_peak_to_mean"]["sim"] - tab[str(n)]["fold_peak_to_mean"]["real"])
                       for n in NS])
         out.append({"set": s, "gain": rep["mic_gain"], "fold_err": float(fe), "table": tab})
         print(s, "fold err", round(fe, 2), {n: round(tab[str(n)]["fold_peak_to_mean"]["sim"], 2) for n in NS}, flush=True)
     (Path(__file__).parent / "egrid_sync.json").write_text(json.dumps(out, indent=1, default=float))
-    real = {n: out[0]["table"][str(n)]["fold_peak_to_mean"]["real"] for n in NS}
-    lines = ["| 설정 | " + " | ".join(f"N {n}" for n in NS) + " | 평균 오차 |", "|---|" + "---|" * (len(NS) + 1),
-             "| **실측** | " + " | ".join(f"{real[n]:.2f}" for n in NS) + " | – |"]
+    allN = sorted({int(n) for r in out for n in r["table"]})
+    real = {n: next(r["table"][str(n)]["fold_peak_to_mean"]["real"] for r in out if str(n) in r["table"]) for n in allN}
+    cell = lambda r, n: f"{r['table'][str(n)]['fold_peak_to_mean']['sim']:.2f}" if str(n) in r["table"] else "–"
+    lines = ["| 설정 | " + " | ".join(f"N {n}" for n in allN) + " | 평균 오차 (N 10~100) |", "|---|" + "---|" * (len(allN) + 1),
+             "| **실측** | " + " | ".join(f"{real[n]:.2f}" for n in allN) + " | – |"]
     for r in out:
-        lines.append(f"| {r['set']} | " + " | ".join(f"{r['table'][str(n)]['fold_peak_to_mean']['sim']:.2f}" for n in NS)
-                     + f" | {r['fold_err']:.2f} |")
+        lines.append(f"| {r['set']} | " + " | ".join(cell(r, n) for n in allN) + f" | {r['fold_err']:.2f} |")
     (Path(__file__).parent / "sync_summary.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines))
 
