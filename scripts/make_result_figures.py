@@ -54,10 +54,11 @@ def fig_nosig_real():
             ("크기·무게 앎", "A2_known_size_weight", "V2_nosig_known_size_weight"),
             ("물성 전부 앎", "A3_known_all", "V3_nosig_known_all"),
             ("DANN (실측 라벨 없음)", "C1_dann", "V4_nosig_dann"),
+            ("실측 라벨 1개/개수", "G_real_labeled_1", "V11_nosig_real_labeled_1"),
             ("실측 라벨 2개/개수", "G_real_labeled_2", "V6_nosig_real_labeled_2"),
             ("실측 라벨 5개/개수", "G_real_labeled_5", "V7_nosig_real_labeled_5")]
     rows = [r for r in rows if r[1] in R and r[2] in R]
-    fig, axs = plt.subplots(1, 2, figsize=(8.4, 3.2), facecolor=SURF, sharey=True)
+    fig, axs = plt.subplots(1, 2, figsize=(8.4, 3.6), facecolor=SURF, sharey=True)
     y = np.arange(len(rows))[::-1]
     h = 0.36
     for ax, key, title, xmax in [(axs[0], "test", "시뮬레이션 test", 12), (axs[1], "real", "실측 녹음 (1차 연구)", 30)]:
