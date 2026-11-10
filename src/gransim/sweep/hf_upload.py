@@ -26,7 +26,9 @@ def _pending(out: Path, done_set: set[str]) -> list[str]:
     for d in sorted((out / "runs").glob("*/done.json")):
         rec = json.loads(d.read_text())
         for r in rec["rows"]:
-            if r["file_name"] not in done_set:
+            # a run fetched as metadata only (resume on a new machine) has its audio on the
+            # repo already, not locally: skip it instead of failing the commit
+            if r["file_name"] not in done_set and (out / r["file_name"]).exists():
                 paths.append(r["file_name"])
         for f in RUN_FILES:
             p = f"runs/{rec['run_id']}/{f}"

@@ -9,6 +9,12 @@ SPEC=$1; OUT=$2; PREFIX=$3; K=$4; N=$5
 REPO=${REPO:-FoggyJupiter/rne-granular-acoustics}
 export HF_TOKEN=${HF_TOKEN:-proxy-injected}
 mkdir -p "$OUT"
+# RESUME=1: a replacement machine first fetches the done markers already on the repo (no
+# audio), so the sweep skips those runs and only computes the rest of this shard
+if [ "${RESUME:-0}" = "1" ]; then
+  gransim upload "$OUT" --repo "$REPO" --prefix "$PREFIX" --fetch-meta --no-manifest > "$OUT.resume.log" 2>&1 \
+    || echo "resume fetch failed (continuing from scratch)" >> "$OUT.resume.log"
+fi
 gransim sweep "$SPEC" --out "$OUT" --workers "$(nproc)" --shard "$K/$N" > "$OUT.sweep.log" 2>&1 &
 PID=$!
 while kill -0 $PID 2>/dev/null; do
@@ -28,8 +34,14 @@ nfail = len(fails.read_text().splitlines()) if fails.exists() else 0
 marker = {"shard": f"{k}/{n}", "runs_done": done, "failures": nfail, "sweep_rc": int(rc),
           "finished_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 p = Path(out).with_suffix(".marker.json"); p.write_text(json.dumps(marker))
-HfApi().upload_file(path_or_fileobj=str(p), path_in_repo=f"{prefix.rstrip('/')}/_shards/shard_{k}_of_{n}.json",
-                    repo_id=repo, repo_type="dataset", commit_message=f"shard {k}/{n} done")
+for i in range(6):   # retry: a missing marker would stall the merge step
+    try:
+        HfApi().upload_file(path_or_fileobj=str(p), path_in_repo=f"{prefix.rstrip('/')}/_shards/shard_{k}_of_{n}.json",
+                            repo_id=repo, repo_type="dataset", commit_message=f"shard {k}/{n} done")
+        break
+    except Exception as e:
+        print("marker upload failed", repr(e)[:200], flush=True)
+        time.sleep(30 * (i + 1))
 print(json.dumps(marker))
 PY
 echo "SHARD $K/$N DONE rc=$RC"
