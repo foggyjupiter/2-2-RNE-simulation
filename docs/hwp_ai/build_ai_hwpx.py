@@ -9,6 +9,7 @@
 한글에서 열어 .hwp로 다시 저장하면 된다.
 """
 import importlib.util
+import os
 import math
 import re
 import shutil
@@ -249,7 +250,7 @@ def preview_png(path: Path, title: str):
 
 
 def main(ref_hwpx: str, out_hwpx: str):
-    spec = importlib.util.spec_from_file_location("content", HERE / "content.py")
+    spec = importlib.util.spec_from_file_location("content", HERE / os.environ.get("CONTENT", "content.py"))
     content = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(content)
     work = Path(out_hwpx).with_suffix(".build")
@@ -275,7 +276,7 @@ def main(ref_hwpx: str, out_hwpx: str):
     s = s.replace("</opf:manifest>", items + "</opf:manifest>")
     s = re.sub(r"<opf:title>.*?</opf:title>", "<opf:title>R&amp;E 연구보고서 인공지능 부분</opf:title>", s)
     hpf.write_text(s, encoding="utf-8")
-    title = "R&E 연구보고서 — 인공지능 부분 작성본"
+    title = getattr(content, "TITLE", "R&E 연구보고서 — 인공지능 부분 작성본")
     texts = [b[1] for b in content.B if b[0] in ("title", "h1", "h2", "p")][:12]
     (work / "Preview" / "PrvText.txt").write_text("\r\n".join(f"<{t[:120]}>" for t in texts), encoding="utf-8")
     preview_png(work / "Preview" / "PrvImage.png", title)

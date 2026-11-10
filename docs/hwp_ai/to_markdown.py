@@ -1,10 +1,11 @@
 """content.py → Markdown (워드 사본용). docs/hwp_ai에서 실행한 뒤 pandoc으로 .docx 변환.
 그림은 저장소 results/ 경로로 넣고, 수식은 TeX로 넣는다(pandoc이 Word 수식으로 바꾼다)."""
-import importlib.util, sys
+import importlib.util, os, sys
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location("content", HERE / "content.py"); c = importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
-L, nt, nq = [], 0, 0
+spec = importlib.util.spec_from_file_location("content", HERE / os.environ.get("CONTENT", "content.py")); c = importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
+L, nq = [], 0
+nt = getattr(c, "TABLE_START", 1) - 1
 cell = lambda s: s.replace("|", "/").replace("\n", "<br>")
 for b in c.B:
     k = b[0]
