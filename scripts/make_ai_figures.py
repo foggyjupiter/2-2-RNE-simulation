@@ -94,6 +94,59 @@ def fig_range():
     plt.close(fig)
 
 
+def _real_preds(e):
+    p = ROOT / "results" / "ml" / "box7_raw" / "experiments_box7" / e / "predictions.jsonl"
+    return [r for r in map(json.loads, p.read_text().splitlines()) if r.get("split") == "real"]
+
+
+def fig_vs_physics():
+    """물리 기반 방법(물리 파트 표 6·8·9)과 인공지능(실제 상자 재실험, 교차검증 평균)의 실측 비교."""
+    R4 = [(5, 25), (30, 50), (55, 75), (80, 100)]
+    NS = [5, 10, 30, 50, 70, 90, 100]
+    groups = {"blind": ["V1_nosig_blind"],
+              "dann": ["V4_nosig_dann", "Q3_cv_dann_f1", "Q4_cv_dann_f2"],
+              "lab": ["V7_nosig_real_labeled_5", "Q1_cv_real_labeled_5_f1", "Q2_cv_real_labeled_5_f2"]}
+    rng, mean = {}, {}
+    for g, es in groups.items():
+        a, b = [], []
+        for e in es:
+            P = _real_preds(e)
+            a.append([np.mean([abs(r["pred"] - r["N"]) for r in P if lo <= r["N"] <= hi]) for lo, hi in R4])
+            b.append([np.mean([r["pred"] for r in P if r["N"] == n]) for n in NS])
+        rng[g], mean[g] = np.mean(a, 0), np.mean(b, 0)
+    phys_known = [2.2, 6.1, 7.3, 7.6]        # 물리 파트 표 6 (물질 앎, 4개 개수로 보정, 5초)
+    phys_blind = [4.7, 6.6, 20.4, 35.9]      # 물리 파트 표 8 (물질 모름)
+    phys_mean = [4, 10, 31, 45, 41, 49, 65]  # 물리 파트 표 9 (물질 모름, 개수별 평균 추정)
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.6, 3.1), facecolor=SURF, gridspec_kw={"width_ratios": [1.15, 1]})
+    for ax in (a1, a2):
+        _ax(ax)
+        ax.yaxis.grid(True, color=GRID, lw=0.8)
+    lab = ["5~25", "30~50", "55~75", "80~100"]
+    a1.plot(lab, phys_blind, color=INK, lw=2, marker="s", ms=4, label="물리 기반, 물질 모름")
+    a1.plot(lab, phys_known, color=INK, lw=1.5, ls="--", marker="s", ms=3.5, mfc=SURF, label="물리 기반, 물질 앎 (4개 개수 보정)")
+    a1.plot(lab, rng["blind"], color=C1, lw=2, marker="o", ms=4, label="인공지능 블라인드")
+    a1.plot(lab, rng["dann"], color=C3, lw=2, marker="o", ms=4, label="인공지능 + 정답 없는 실측 적응")
+    a1.plot(lab, rng["lab"], color=C2, lw=1.5, ls="--", marker="o", ms=3.5, mfc=SURF, label="인공지능 + 실측 정답 5개")
+    a1.set_xlabel("실제 개수 구간", color=INK2)
+    a1.set_ylabel("실측 MAE (개)", color=INK2)
+    a1.set_title("(a) 개수 구간별 오차", fontsize=9, color=INK, loc="left")
+    a1.legend(frameon=False, fontsize=6.6, labelcolor=INK, loc="upper left")
+    a2.plot([0, 100], [0, 100], color=GRID, lw=1.2, ls="-")
+    a2.text(66, 80, "추정 = 실제", fontsize=7, color=INK2, rotation=38)
+    a2.plot(NS, phys_mean, color=INK, lw=2, marker="s", ms=4, label="물리 기반, 물질 모름")
+    a2.plot(NS, mean["blind"], color=C1, lw=2, marker="o", ms=4, label="인공지능 블라인드")
+    a2.plot(NS, mean["dann"], color=C3, lw=2, marker="o", ms=4, label="인공지능 + 정답 없는 실측 적응")
+    a2.set_xlim(0, 105); a2.set_ylim(0, 105)
+    a2.set_xlabel("실제 개수 N", color=INK2)
+    a2.set_ylabel("평균 추정 개수", color=INK2)
+    a2.set_title("(b) 물질을 모를 때 개수별 평균 추정값", fontsize=9, color=INK, loc="left")
+    a2.legend(frameon=False, fontsize=6.6, labelcolor=INK, loc="upper left")
+    fig.tight_layout()
+    fig.savefig(OUT / "ai_vs_physics.png", dpi=220, facecolor=SURF)
+    plt.close(fig)
+    print("vs physics", {k: np.round(v, 1).tolist() for k, v in rng.items()}, {k: np.round(v).tolist() for k, v in mean.items()})
+
+
 def _box(ax, x, y, w, h, text, fc, ec, fs=8.5, bold=False, ls="-"):
     from matplotlib.patches import FancyBboxPatch
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.06",
@@ -178,6 +231,7 @@ if __name__ == "__main__":
     fig_improvement()
     fig_cv()
     fig_range()
+    fig_vs_physics()
     fig_flow()
     fig_model()
     print("saved")
