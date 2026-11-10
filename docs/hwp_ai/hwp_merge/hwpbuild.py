@@ -247,7 +247,8 @@ class Doc:
 # --------------------------------------------------------------------------- 내용 → 레코드
 INLINE = [("N̂", r"\hat{N}", "hat{N}"), ("σ̂", r"\hat{\sigma}", "hat{sigma}"),
           ("⟨a⁴⟩/⟨a²⟩²", r"\langle a^4\rangle/\langle a^2\rangle^2", "LEFT < a ^{4} RIGHT > / LEFT < a ^{2} RIGHT > ^{2}"),
-          ("e⁹", r"e^9", "e ^{9}"), ("e_n", r"e_n", "e _{n}")]
+          ("e⁹", r"e^9", "e ^{9}"), ("e_n", r"e_n", "e _{n}"),
+          ("m = 2595 log₁₀(1 + f/700)", r"m = 2595\log_{10}(1+f/700)", "m=2595 log _{10} (1+f/700)")]
 
 
 def split_inline(text):
