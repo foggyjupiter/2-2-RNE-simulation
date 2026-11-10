@@ -11,3 +11,4 @@ dist/
 results/**/cache/
 datasets/
 docs/report_build/
+results/ml/box7_raw/
