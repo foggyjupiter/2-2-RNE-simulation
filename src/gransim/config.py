@@ -58,7 +58,7 @@ class Material(_Strict):
 
 class ContainerConfig(_Strict):
     size: tuple[float, float, float] = Field(
-        (0.05, 0.05, 0.07), description="Inner dimensions (Lx, Ly, Lz) [m]")
+        (0.07, 0.07, 0.05), description="Inner dimensions (Lx, Ly, Lz) [m]; Lz is the shaking direction")
     wall_thickness: float = Field(0.003, gt=0, description="Wall thickness [m] (metadata)")
     mass: float = Field(0.070, gt=0, description="Container mass [kg] (metadata, mass ratio)")
     material: Material = Material(youngs_modulus=3.2e9, poisson_ratio=0.37)  # acrylic (PMMA)

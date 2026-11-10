@@ -18,7 +18,11 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "results" / "physics"
 D = ROOT / "datasets"
-BOX = 0.05 * 0.05                       # 바닥 넓이 A (5 × 5 cm)
+import sys  # noqa: E402
+sys.path.insert(0, str(ROOT / "src"))
+from gransim.config import load_config  # noqa: E402
+_BOX = load_config(ROOT / "configs" / "experiment_replica.yaml").container.size
+BOX = _BOX[0] * _BOX[1]                 # 바닥 넓이 A
 PHASE = ["gt_phase_concentration", "gt_collectivity", "gt_height_std", "gt_free_flight", "gt_sustained_fraction"]
 
 

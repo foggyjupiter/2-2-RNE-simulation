@@ -119,7 +119,9 @@ def test_separate_collisions_not_merged():
 
 
 def shaken(n=60, mu=0.3, freq=9.0, rough=2.0):
-    return SimConfig(particles={"count": n},
+    # fixed test geometry (5×5 floor, 7 cm tall): dense enough that 60 particles also collide
+    # with each other within the short recording window, independent of the default box
+    return SimConfig(container={"size": (0.05, 0.05, 0.07)}, particles={"count": n},
                      excitation={"mode": "fixed_amplitude", "amplitude": 0.0134, "frequency": freq},
                      contact={"model": "linear", "friction_pp": mu, "friction_pw": mu,
                               "wall_roughness_deg": rough},

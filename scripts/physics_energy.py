@@ -28,7 +28,10 @@ from physics_scaling import cv_r2_1d  # noqa: E402
 
 OUT = ROOT / "results" / "physics"
 D = ROOT / "datasets"
-BOX = 0.05 * 0.05
+sys.path.insert(0, str(ROOT / "src"))
+from gransim.config import load_config  # noqa: E402
+_BOX = load_config(ROOT / "configs" / "experiment_replica.yaml").container.size
+BOX = _BOX[0] * _BOX[1]                 # 바닥 넓이 A
 
 
 def load(ds):

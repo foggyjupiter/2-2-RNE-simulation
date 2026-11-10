@@ -45,7 +45,8 @@ def test_unknown_field_rejected():
 def test_derived_quantities():
     cfg = SimConfig(particles={"count": 300}, contact={"model": "linear"})
     dq = derived_quantities(cfg)
-    assert dq["layers_F"] == pytest.approx(300 * 0.006 ** 2 / 0.05 ** 2)  # ≈ 4.3 (spec 2)
+    Lx, Ly, _ = cfg.container.size
+    assert dq["layers_F"] == pytest.approx(300 * 0.006 ** 2 / (Lx * Ly))  # 7×7 floor: ≈ 2.2
     assert dq["particle_to_container_mass"] == pytest.approx(300 * 1.2e-4 / 0.07)
     assert dq["steps_per_contact"] == pytest.approx(20.0)  # e = 0.8 needs no refinement
     low_e = derived_quantities(SimConfig(contact={"model": "linear", "restitution_pp": 0.3}))

@@ -1,6 +1,6 @@
 """흔들리는 상자 속 공 하나의 1차원 모형 — 적은 입자가 왜 가진에 동기화되는가 (학습 없음).
 
-실제 상자(높이 7 cm, BB 6 mm → 공 중심이 움직일 수 있는 높이 H = 6.4 cm)를 크랭크 진폭
+실제 상자(높이 5 cm, BB 6 mm → 공 중심이 움직일 수 있는 높이 H = 4.4 cm)를 크랭크 진폭
 A = 1.34 cm, 진동수 f로 위아래로 흔든다. 공은 바닥·천장과만 부딪치고(반발계수 e_w), 사이에서는
 자유낙하한다. 바닥 위치는 A sin(ωt)를 정확히 쓴다 (높이 튀기 근사 없음). 상대 속도가 아주
 작아지면 (연속 미세 충돌) 공이 바닥에 붙어 함께 움직이다가 바닥 가속도가 −g보다 작아지는
@@ -14,6 +14,7 @@ A = 1.34 cm, 진동수 f로 위아래로 흔든다. 공은 바닥·천장과만 
 """
 import json
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -23,7 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "results" / "physics" / "sync"
 G = 9.81
 A = 0.0134            # 크랭크 진폭 [m]
-H = 0.07 - 0.006      # 공 중심이 움직일 수 있는 높이 [m]
+sys.path.insert(0, str(ROOT / "src"))
+from gransim.config import load_config  # noqa: E402
+_BOX = load_config(ROOT / "configs" / "experiment_replica.yaml").container.size
+H = _BOX[2] - 0.006   # 공 중심이 움직일 수 있는 높이 [m] (상자 높이 − BB 지름)
 TAU_RING = 0.062      # 실측 울림 감쇠 시간 [s] — 소리 주기성 지표에서 충돌 에너지를 이만큼 번지게 함
 
 
