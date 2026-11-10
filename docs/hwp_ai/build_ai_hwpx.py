@@ -3,8 +3,10 @@
     python docs/hwp_ai/build_ai_hwpx.py <참고.hwpx> <출력.hwpx>
 
 참고 hwpx에서 header.xml(글꼴·문단·글자·테두리 스타일), settings.xml, 첫 문단의 쪽 설정(secPr)을
-가져오고, 본문(section0.xml)은 content.py의 블록으로 새로 만든다. 그림은 넣지 않고 자리(테두리 상자)와
-캡션만 둔다. 한글에서 열어 .hwp로 다시 저장하면 된다.
+가져오고, 본문(section0.xml)은 content.py의 블록으로 새로 만든다. 그림은 참고 파일과 같은 hp:pic 개체
+(BinData + content.hpf 등록, 캡션 자동 번호)로, 수식은 hp:equation 개체(한글 수식 스크립트)로 넣는다.
+수식 개체 크기는 matplotlib mathtext로 잰 뒤 참고 파일 수식들로 보정한 배율로 정한다.
+한글에서 열어 .hwp로 다시 저장하면 된다.
 """
 import importlib.util
 import math
@@ -18,6 +20,7 @@ from xml.sax.saxutils import escape
 from lxml import etree
 
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
 HP = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 
 # 참고 파일 스타일 번호 (header.xml)
@@ -30,6 +33,8 @@ BF_CELL, BF_HEAD, BF_TABLE = 9, 4, 9
 TEXT_W = 41950                       # 표 폭 (본문 폭 42520 HWPUNIT 안쪽)
 
 _pid = [1000000000]
+_images = []                         # (BinData 이름, 원본 경로)
+FIG_W = {"band_masking_V4.png": 0.62, "fig_cause_sigma.png": 0.8, "embedding_map_V4.png": 1.0}
 _tid = [1700000000]
 _z = [100]
 
@@ -115,8 +120,84 @@ def table_xml(rows, widths, head_rows=1, kv=False, caption=None):
             f'<hp:run charPrIDRef="{S["p"][1]}">{tbl}<hp:t/></hp:run></hp:p>')
 
 
+def picture_xml(file, caption):
+    """참고 hwpx의 hp:pic 구조 그대로: 글자처럼 취급, 가운데 문단, 아래 캡션(그림 자동 번호)."""
+    from PIL import Image
+    src = REPO / file
+    im = Image.open(src)
+    px_w, px_h = im.size
+    dpi = (im.info.get("dpi") or (96, 96))[0] or 96
+    ow, oh = int(px_w / dpi * 7200), int(px_h / dpi * 7200)          # 원본 크기 (HWPUNIT)
+    cw = int(TEXT_W * FIG_W.get(Path(file).name, 0.92))
+    ch = int(cw * px_h / px_w)
+    k = len(_images) + 1
+    name = f"image{k}"
+    _images.append((name, src))
+    _tid[0] += 7
+    _z[0] += 1
+    cap = re.sub(r"^그림\s*\d+\.\s*", "", caption)
+    capx = (f'<hp:caption side="BOTTOM" fullSz="0" width="8504" gap="850" lastWidth="{cw}">'
+            f'<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="TOP" linkListIDRef="0" '
+            f'linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
+            f'<hp:p id="{nid()}" paraPrIDRef="{S["cap"][0]}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+            f'<hp:run charPrIDRef="{S["cap"][1]}"><hp:t>그림 </hp:t><hp:ctrl><hp:autoNum num="{k}" numType="PICTURE">'
+            f'<hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar="" supscript="0"/></hp:autoNum>'
+            f'</hp:ctrl><hp:t>. {escape(cap)}</hp:t></hp:run></hp:p></hp:subList></hp:caption>')
+    sx, sy = cw / ow, ch / oh
+    pic = (f'<hp:pic id="{_tid[0]}" zOrder="{_z[0]}" numberingType="PICTURE" textWrap="TOP_AND_BOTTOM" '
+           f'textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="{_tid[0] + 1}" reverse="0">'
+           f'<hp:offset x="0" y="0"/><hp:orgSz width="{ow}" height="{oh}"/><hp:curSz width="{cw}" height="{ch}"/>'
+           f'<hp:flip horizontal="0" vertical="0"/>'
+           f'<hp:rotationInfo angle="0" centerX="{cw // 2}" centerY="{ch // 2}" rotateimage="1"/>'
+           f'<hp:renderingInfo><hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>'
+           f'<hc:scaMatrix e1="{sx:.6f}" e2="0" e3="0" e4="0" e5="{sy:.6f}" e6="0"/>'
+           f'<hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/></hp:renderingInfo>'
+           f'<hc:img binaryItemIDRef="{name}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>'
+           f'<hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="{ow}" y="0"/><hc:pt2 x="{ow}" y="{oh}"/><hc:pt3 x="0" y="{oh}"/></hp:imgRect>'
+           f'<hp:imgClip left="0" right="{ow}" top="0" bottom="{oh}"/><hp:inMargin left="0" right="0" top="0" bottom="0"/>'
+           f'<hp:imgDim dimwidth="{ow}" dimheight="{oh}"/><hp:effects/>'
+           f'<hp:sz width="{cw}" widthRelTo="ABSOLUTE" height="{ch}" heightRelTo="ABSOLUTE" protect="0"/>'
+           f'<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" '
+           f'vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+           f'<hp:outMargin left="0" right="0" top="0" bottom="0"/>{capx}</hp:pic>')
+    return (f'<hp:p id="{nid()}" paraPrIDRef="{S["cap"][0]}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+            f'<hp:run charPrIDRef="{S["p"][1]}">{pic}<hp:t/></hp:run></hp:p>')
+
+
+def eq_size(latex):
+    """수식 개체 크기 (HWPUNIT). mathtext 크기 × 참고 hwpx 수식으로 맞춘 배율 (너비 ×1.15, 분수 높이 ×1.6)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.font_manager import FontProperties
+    from matplotlib.mathtext import MathTextParser
+    t = re.sub(r"\\text\{([^}]*)\}", lambda m: r"\mathrm{" + "W" * len(m.group(1)) + "}", latex)
+    t = t.replace(r"\quad", r"\ \ \ ")
+    t = re.sub(r"\\le(?![a-z])", r"\\leq", t)          # mathtext는 \le를 모른다
+    w, h, _d, _, _ = MathTextParser("path").parse(f"${t}$", dpi=72, prop=FontProperties(size=10))
+    tall = r"\frac" in latex or "_{i=1}^" in latex
+    W = int(w * 100 * 1.15) + 200
+    H = max(2438, int(h * 100 * 1.6)) if tall else max(1163, int(h * 100 * 1.1))
+    return W, H, (66 if tall else 86)
+
+
+def equation_xml(latex, script):
+    W, H, base = eq_size(latex)
+    _tid[0] += 7
+    _z[0] += 1
+    e = (f'<hp:equation id="{_tid[0]}" zOrder="{_z[0]}" numberingType="EQUATION" textWrap="TOP_AND_BOTTOM" '
+         f'textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" version="Equation Version 60" baseLine="{base}" '
+         f'textColor="#000000" baseUnit="1000" lineMode="CHAR" font="HancomEQN">'
+         f'<hp:sz width="{W}" widthRelTo="ABSOLUTE" height="{H}" heightRelTo="ABSOLUTE" protect="0"/>'
+         f'<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" '
+         f'vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+         f'<hp:outMargin left="56" right="56" top="0" bottom="0"/><hp:shapeComment>수식입니다.</hp:shapeComment>'
+         f'<hp:script>{escape(script)}</hp:script></hp:equation>')
+    return (f'<hp:p id="{nid()}" paraPrIDRef="{S["cap"][0]}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+            f'<hp:run charPrIDRef="{S["p"][1]}">{e}</hp:run></hp:p>')
+
+
 def render(blocks):
-    out, n_eq = [], 0
+    out = []
     for b in blocks:
         k = b[0]
         if k in ("title", "h1", "h2", "h3", "p", "ref", "note"):
@@ -134,16 +215,12 @@ def render(blocks):
             out.append(table_xml([[a, t] for a, t in rows], [15, 85], head_rows=0, kv=True))
             out.append(para("", "p"))
         elif k == "fig":
-            _, cap, file, what = b
-            box = f"[그림 자리]  넣을 파일: {file}\n내용: {what}"
-            out.append(table_xml([[box]], [1], head_rows=0))
-            out.append(para(cap, "cap"))
+            _, cap, file, _what = b
+            out.append(picture_xml(file, cap))
             out.append(para("", "p"))
         elif k == "eq":
-            n_eq += 1
-            _, desc, script = b
-            out.append(para(f"[수식 {n_eq}] {desc}", "eq_head"))
-            out.append(para(f"한글 수식 편집기 입력: {script}", "eq_body"))
+            _, latex, script = b
+            out.append(equation_xml(latex, script))
     return "".join(out)
 
 
@@ -185,11 +262,17 @@ def main(ref_hwpx: str, out_hwpx: str):
     head = ref_sec[: ref_sec.index("<hp:p ")]           # xml 선언 + <hs:sec ...> (이름공간 포함)
     body = first_paragraph(ref_sec) + render(content.B)
     sec_path.write_text(head + body + "</hs:sec>", encoding="utf-8")
-    # 그림 파일 제거, 매니페스트 정리
+    # 참고 파일 그림 제거 → 이 보고서 그림을 BinData에 넣고 매니페스트에 등록
     shutil.rmtree(work / "BinData", ignore_errors=True)
+    (work / "BinData").mkdir()
+    for name, src in _images:
+        shutil.copyfile(src, work / "BinData" / f"{name}.png")
     hpf = work / "Contents" / "content.hpf"
     s = hpf.read_text(encoding="utf-8")
     s = re.sub(r'<opf:item id="image\d+"[^>]*/>', "", s)
+    items = "".join(f'<opf:item id="{n}" href="BinData/{n}.png" media-type="image/png" isEmbeded="1"/>'
+                    for n, _ in _images)
+    s = s.replace("</opf:manifest>", items + "</opf:manifest>")
     s = re.sub(r"<opf:title>.*?</opf:title>", "<opf:title>R&amp;E 연구보고서 인공지능 부분</opf:title>", s)
     hpf.write_text(s, encoding="utf-8")
     title = "R&E 연구보고서 — 인공지능 부분 작성본"

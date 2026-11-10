@@ -1,4 +1,5 @@
-"""content.py → Markdown (워드 사본용, pandoc으로 .docx 변환)."""
+"""content.py → Markdown (워드 사본용). docs/hwp_ai에서 실행한 뒤 pandoc으로 .docx 변환.
+그림은 저장소 results/ 경로로 넣고, 수식은 TeX로 넣는다(pandoc이 Word 수식으로 바꾼다)."""
 import importlib.util, sys
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
@@ -21,7 +22,7 @@ for b in c.B:
         _, cap, rows = b
         L += [f"**■ {cap}**", "", "| 항목 | 내용 |", "|---|---|"] + [f"| {cell(a)} | {cell(t)} |" for a, t in rows] + [""]
     elif k == "fig":
-        _, cap, f, what = b; L += [f"> [그림 자리] 넣을 파일: `{f}`  ", f"> 내용: {what}", "", f"**{cap}**", ""]
+        _, cap, f, what = b; L += [f"![{cap}](../../{f}){{width=95%}}", ""]
     elif k == "eq":
-        nq += 1; L += [f"**[수식 {nq}] {b[1]}** — 한글 수식 편집기 입력: `{b[2]}`", ""]
+        L += ["$$" + b[1] + "$$", ""]
 Path(sys.argv[1]).write_text("\n".join(L), encoding="utf-8")
