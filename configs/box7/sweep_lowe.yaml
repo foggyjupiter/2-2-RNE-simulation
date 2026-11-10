@@ -1,0 +1,58 @@
+# [상자 정정 2026-11-10] 실제 상자(바닥 7×7 cm, 높이 5 cm, configs/experiment_replica.yaml)로 다시 만든 데이터.
+# 원래 설정(configs/sweep_lowe.yaml)과 같은 설계에서 바꾼 것: 충돌별 세기 퍼짐 σ = 0(세기 퍼짐 제거 데이터와 같음),
+# 대조 쌍 없음(쌍 손실 제거 실험 C3에서 효과 없음). 등화기는 새 상자로 다시 맞춤; 마이크 게인은 새 상자에서
+# 다시 맞춘 값이 0.924(벽 반발 0.7 기준, 예전 0.92)라 범위를 그대로 둠 (results/sim2real/recalibration_box7.md)
+# 보충 데이터 lowe = v3와 같은 설계에 입자-벽 반발계수만 0.30~0.55 (v3는 0.55~0.92).
+# 물리 분석(docs/REPORT_DRAFT.md 4.4절)에서 실제 BB-아크릴 벽 반발계수가 약 0.5로 v3 범위 밖이었음.
+# 세기 퍼짐은 처음부터 0 (v3_nosig와 같은 소리), 대조 쌍 없음, 실행 300개 × 녹음 조건 4.
+base: configs/experiment_replica.yaml
+overrides:
+  contact: {model: hertz}            # validated production stiffness (Hertz, E x 0.25)
+  excitation: {rpm: 372}
+  acoustics: {impact_gain_norm: energy}
+  time: {record_time: 5.3}           # 0.3 s acoustic warm-up + 5.0 s clip
+seed: 4044
+n_dynamics: 300
+renders_per_run: 4
+sampling: lhs
+label_key: particles.count
+
+# Unknown material properties (spec 8.1), all also stored as labels. Ranges contain
+# particles that can be bought and recorded for validation: 6 mm and 8 mm BBs
+# (ABS / bio PLA, 0.12-0.43 g at 6 mm), plastic and glass beads.
+# Diameter is included on request although N and d can trade off through the layer
+# number F = N d^2 / (Lx Ly); the identifiability check reports where they mix.
+blind_axes:
+  - particles.diameter
+  - particles.density_kg_m3
+  - contact.restitution_pp
+  - contact.restitution_pw
+  - contact.friction_pp
+  - contact.friction_pw
+  - acoustics.particle_youngs_modulus
+
+axes:
+  particles.count:            {dist: int_uniform, low: 0, high: 100}
+  particles.diameter:         {dist: uniform, low: 4.0e-3, high: 8.0e-3}
+  particles.density_kg_m3:    {dist: loguniform, low: 1000.0, high: 4000.0}  # PLA/ABS .. heavy BB
+  contact.restitution_pp:     {dist: uniform, low: 0.55, high: 0.97}
+  contact.restitution_pw:     {dist: uniform, low: 0.30, high: 0.55}
+  contact.friction_pp:        {dist: uniform, low: 0.1, high: 0.5}
+  contact.friction_pw:        {dist: uniform, low: 0.1, high: 0.5}
+  # nuisance (unknown in practice, not a label)
+  contact.wall_roughness_deg: {dist: uniform, low: 0.3, high: 2.0}
+  excitation.rpm:             {dist: uniform, low: 357.0, high: 387.0}
+  # acoustic conditions, drawn per render
+  acoustics.particle_youngs_modulus: {dist: loguniform, low: 1.5e9, high: 5.0e9}
+  acoustics.mic_gain:         {dist: loguniform, low: 0.65, high: 1.3}   # box7 calibrated 0.924 at e_pw 0.7 (old 0.92), ±3 dB
+  acoustics.drr:              {dist: loguniform, low: 3.0, high: 12.0}   # calibrated 6
+  acoustics.noise_gain:       {dist: uniform, low: 0.5, high: 1.5}
+  acoustics.impact_gain_sigma: {dist: uniform, low: 0.0, high: 0.0}
+  acoustics.impact_source:    {dist: choice, values: [synthetic, recorded]}
+
+# Held-out material region for out-of-distribution evaluation (never in train/val):
+# dense and low-restitution particles.
+contrast_pairs: {}
+holdout_box:
+  particles.density_kg_m3: [2800.0, 4000.0]
+  contact.restitution_pw: [0.55, 0.68]

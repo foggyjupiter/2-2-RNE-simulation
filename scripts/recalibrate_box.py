@@ -44,7 +44,8 @@ def main():
     if len(dirs) < len(NS_REAL):
         raise SystemExit(f"실행이 모자람: {sorted(dirs)}")
     old = {"mic_gain": 0.92}
-    with np.load(EQ_FILE) as z:
+    old_file = EQ_FILE.with_name("eq_box5x5x7.npz")
+    with np.load(old_file if old_file.exists() else EQ_FILE) as z:     # 비교 기준 = 옛 상자 등화기
         old_eq = {"f": z["f"], "gain_db": z["gain_db"]}
     # 1) 등화기 없이 → 새 등화기
     r0 = run_sim2real(REC, dirs, 6.2, n_render=a.n_render, acoustics_overrides={**BASE_AC, "eq": False})
