@@ -75,6 +75,17 @@ def pack(name, spec):
     shutil.copyfile(ROOT / "configs" / "box7" / spec, out / "sweep_spec.yaml")
     files = [f.path for f in retry(api.list_repo_tree, REPO, path_in_repo=prefix, recursive=True, repo_type="dataset")
              if hasattr(f, "size") and (f.path.endswith("/done.json") or "/audio/" in f.path)]
+    # 완료 표시가 다 있어도 업로드가 한도에 걸려 빠진 실행이 있을 수 있음 → 모자라면 묶지 않고 빠진 몫을 기록
+    have_runs = {p.split("/")[-2] for p in files if p.endswith("/done.json")}
+    total = next(t for s, _n, t, _sp in SETS if s == name)
+    if len(have_runs) < total:
+        from gransim.sweep.runner import load_spec
+        from gransim.sweep.sampling import build_jobs
+        n = next(_n for s, _n, t, _sp in SETS if s == name)
+        jobs = build_jobs(load_spec(ROOT / "configs" / "box7" / spec))
+        miss = sorted({i % n for i, j in enumerate(jobs) if j.run_id not in have_runs})
+        log(f"{name}: 실행 {len(have_runs)}/{total}만 올라옴 — 빠진 몫 {miss} (해당 세션 재업로드 또는 RESUME=1 대체 필요)")
+        raise RuntimeError("incomplete upload")
     log(f"{name}: 받을 파일 {len(files)}개")
 
     def get(path):
