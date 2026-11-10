@@ -29,7 +29,8 @@ def eq_size(latex, inline=False):
     matplotlib.use("Agg")
     from matplotlib.font_manager import FontProperties
     from matplotlib.mathtext import MathTextParser
-    t = re.sub(r"\\le(?![a-z])", r"\\leq", latex)
+    t = re.sub(r"\\text\{([^}]*)\}", lambda m: r"\mathrm{" + "W" * len(m.group(1)) + "}", latex)
+    t = re.sub(r"\\le(?![a-z])", r"\\leq", t)
     w, h, _d, _, _ = MathTextParser("path").parse(f"${t}$", dpi=72, prop=FontProperties(size=10))
     tall = r"\frac" in latex
     W = int(w * 100 * 1.15) + 200
@@ -272,7 +273,7 @@ def load_content(path):
         k = b[0]
         if k == "h2":
             t = b[1]
-            cur = ("intro" if t.startswith("Ⅰ") else "III" if t.startswith("Ⅲ") else "IV" if t.startswith("Ⅳ")
+            cur = ("intro" if t.startswith("Ⅰ") else "II" if t.startswith("Ⅱ") else "III" if t.startswith("Ⅲ") else "IV" if t.startswith("Ⅳ")
                    else "V" if t.startswith("Ⅴ") else "VI" if t.startswith("Ⅵ") else "refs")
             groups[cur] = []
             continue
@@ -298,7 +299,9 @@ def render(doc, blocks, group):
             top = re.match(r"^\d+\.\s", t) is not None
             if not prev_head:
                 out += doc.para([], cs=cs)
-            if top and group in ("III", "IV"):
+            if group == "II":
+                out += doc.para([("  " if top else "    ") + t], ps=2, style=0, cs=46 if top else 6)
+            elif top and group in ("III", "IV"):
                 out += doc.para(["  " + t], ps=2, style=0, cs=55)
             else:
                 out += doc.para([t], cs=cs)
@@ -344,6 +347,8 @@ def main(src, content, dst):
     spots.append((k, doc.para([], cs=6) + render(doc, G["IV"], "IV")))
     a, e = P("Ⅳ. 연구 결과")
     spots.append((a, render(doc, G["III"], "III") + doc.para([], cs=115)))
+    a, e = P("추정값: [11:eqed]가 최소인")
+    spots.append((e, doc.para([], cs=6) + render(doc, G["II"], "II")))
     a, e = P("이를 위해 과립계 물리 기반")
     spots.append((e, doc.para([], cs=77) + render(doc, G["intro"], "intro")))
     for idx, recs in sorted(spots, key=lambda x: -x[0]):
