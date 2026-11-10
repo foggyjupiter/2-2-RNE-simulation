@@ -26,20 +26,20 @@ def _ax(ax):
 
 def fig_improvement():
     """실제 상자(7×7×5) 재실험 결과 (results/ml/box7_compare.md). 괄호 = 예전 5×5×7 상자 실측."""
-    rows = [("1차 연구 방식 재현\n(BB만 학습, A4)", 28.1, 19, GRAY, 29.4),
-            ("BB만 학습한 본 모델\n(물질을 앎, A5)", 9.6, 41, GRAY, 18.5),
-            ("블라인드, 한 가진 속도\n(V1)", 9.8, 38, C1, 13.7),
-            ("블라인드, 여러 가진 속도\n(H9)", 9.6, 40, C1, 11.2),
-            ("V1 + 정답 없는 실측 적응 DANN\n(V4·Q3·Q4 평균)", 7.8, 41, C3, 11.3),
-            ("V1 + DANN + 실제로 잰 크기·무게\n(V8·Q5·Q6 평균)", 8.9, 33, C3, 9.8),
-            ("V1 + 개수별 실측 정답 5개\n(V7·Q1·Q2 평균)", 6.8, 47, C2, 6.3)]
+    rows = [("1차 연구 방식 재현\n(물질 앎, BB만 학습)", 28.1, 19, GRAY, 29.4),
+            ("BB만 학습한 본 모델\n(물질 앎)", 9.6, 41, GRAY, 18.5),
+            ("블라인드\n(물질 모름)", 9.8, 38, C1, 13.7),
+            ("블라인드,\n여러 가진 속도로 학습", 9.6, 40, C1, 11.2),
+            ("+ 정답 없는 실측 적응\n(3겹 평균)", 7.8, 41, C3, 11.3),
+            ("+ 정답 없는 실측 적응\n+ 실제로 잰 크기·무게", 8.9, 33, C3, 9.8),
+            ("+ 실측 정답 개수별 5개\n(3겹 평균)", 6.8, 47, C2, 6.3)]
     fig, ax = plt.subplots(figsize=(7.6, 3.9), facecolor=SURF)
     _ax(ax)
     ax.xaxis.grid(True, color=GRID, lw=0.8)
     y = np.arange(len(rows))[::-1]
     ax.barh(y, [r[1] for r in rows], color=[r[3] for r in rows], height=0.62)
     for yi, r in zip(y, rows):
-        ax.text(r[1] + 0.4, yi, f"{r[1]:.1f}개  (±5개 이내 {r[2]}%)   이전 상자 {r[4]:.1f}", va="center", color=INK, fontsize=8.2)
+        ax.text(r[1] + 0.4, yi, f"{r[1]:.1f}개  (±5개 이내 {r[2]}%)   5×5×7 상자 {r[4]:.1f}", va="center", color=INK, fontsize=8.2)
     ax.set_yticks(y, [r[0] for r in rows], color=INK, fontsize=8.5)
     ax.set_xlim(0, 48)
     ax.set_xlabel("실측 녹음 개수 오차 (MAE, 개) — 낮을수록 좋음 (실제 상자 7×7×5 데이터로 학습)", color=INK2)
