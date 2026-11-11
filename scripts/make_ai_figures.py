@@ -176,6 +176,60 @@ def fig_probe():
     plt.close(fig)
 
 
+def fig_phase_map():
+    """실제 상자(7×7×5) 시뮬레이션 1,188회의 상: (a) 층 수-비탄성 평면, (b) N, (c) εF에 대한 가진 위상 집중도.
+    datasets/box7pack_v3_nosig/manifest.csv (시뮬레이션 정답 지표)."""
+    import pandas as pd
+    from matplotlib.colors import LinearSegmentedColormap
+    from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
+    m = pd.read_csv(ROOT / "datasets" / "box7pack_v3_nosig" / "manifest.csv").drop_duplicates("run_id")
+    m = m[m.N > 0]
+    d = m.particle_diameter_m.values
+    F = m.N.values * d ** 2 / (0.07 * 0.07)
+    eps = 0.5 * ((1 - m.restitution_pp.values ** 2) + (1 - m.restitution_pw.values ** 2))
+    y = m.gt_phase_concentration.values
+
+    def r2_binned(x, nb=25):
+        edges = np.quantile(x, np.linspace(0, 1, nb + 1))
+        idx = np.clip(np.digitize(x, edges[1:-1]), 0, nb - 1)
+        mu = np.array([y[idx == k].mean() for k in range(nb)])
+        return 1 - ((y - mu[idx]) ** 2).sum() / ((y - y.mean()) ** 2).sum()
+    rN, rE = r2_binned(m.N.values.astype(float)), r2_binned(np.log(eps * F))
+    cmap = LinearSegmentedColormap.from_list("blue_seq", ["#dbe8f8", "#2a78d6", "#0d3a73"])
+    fig, axs = plt.subplots(1, 3, figsize=(11, 3.2), facecolor=SURF)
+    o = np.argsort(y)
+    kw = dict(c=y[o], cmap=cmap, lw=0, vmin=0.1, vmax=0.6)
+    for ax in axs:
+        _ax(ax)
+    sc = axs[0].scatter(F[o], eps[o], s=9, **kw)
+    xx = np.logspace(-2.5, 0.2, 50)
+    for c in (0.02, 0.05, 0.1, 0.2):
+        axs[0].plot(xx, c / xx, color=INK2, lw=0.7, ls=":")
+    axs[0].set_xlabel("층 수 F = N d²/A  (점선: εF 일정)", color=INK2)
+    axs[0].set_ylabel("비탄성 ε", color=INK2)
+    axs[0].set_title("(a) 상 지도 (색: 위상 집중도)", loc="left", fontsize=9, color=INK)
+    axs[1].scatter(m.N.values[o], y[o], s=7, **kw)
+    axs[1].set_xlabel("개수 N", color=INK2)
+    axs[1].set_ylabel("가진 위상 집중도", color=INK2)
+    axs[1].set_title(f"(b) 개수로 보면 (R² {rN:.2f})", loc="left", fontsize=9, color=INK)
+    axs[2].scatter((eps * F)[o], y[o], s=7, **kw)
+    axs[2].set_xlabel("εF", color=INK2)
+    axs[2].set_title(f"(c) εF로 보면 (R² {rE:.2f})", loc="left", fontsize=9, color=INK)
+    for ax in (axs[0], axs[2]):
+        ax.set_xscale("log")
+        ax.xaxis.set_major_locator(LogLocator(base=10, subs=(1.0, 3.0)))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+        ax.xaxis.set_minor_formatter(NullFormatter())
+    axs[0].set_ylim(0.08, 0.72)
+    axs[0].set_xlim(0.003, 1.6)
+    cb = fig.colorbar(sc, ax=axs, shrink=0.8, pad=0.02)
+    cb.set_label("가진 위상 집중도", color=INK2)
+    cb.outline.set_visible(False)
+    fig.savefig(OUT / "ai_phase_map.png", dpi=220, facecolor=SURF, bbox_inches="tight")
+    plt.close(fig)
+    print(f"phase map: runs {len(m)}, R2 N {rN:.2f}, epsF {rE:.2f}")
+
+
 def _box(ax, x, y, w, h, text, fc, ec, fs=8.5, bold=False, ls="-"):
     from matplotlib.patches import FancyBboxPatch
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.06",
@@ -262,6 +316,7 @@ if __name__ == "__main__":
     fig_range()
     fig_vs_physics()
     fig_probe()
+    fig_phase_map()
     fig_flow()
     fig_model()
     print("saved")
