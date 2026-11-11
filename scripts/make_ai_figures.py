@@ -39,12 +39,11 @@ def fig_improvement():
     y = np.arange(len(rows))[::-1]
     ax.barh(y, [r[1] for r in rows], color=[r[3] for r in rows], height=0.62)
     for yi, r in zip(y, rows):
-        ax.text(r[1] + 0.4, yi, f"{r[1]:.1f}개  (±5개 이내 {r[2]}%)   [{r[4]:.1f}]", va="center", color=INK, fontsize=8.2)
+        ax.text(r[1] + 0.4, yi, f"{r[1]:.1f}개  (±5개 이내 {r[2]}%)", va="center", color=INK, fontsize=8.2)
     ax.set_yticks(y, [r[0] for r in rows], color=INK, fontsize=8.5)
-    ax.set_xlim(0, 55)
+    ax.set_xlim(0, 40)
     ax.set_xlabel("실측 녹음(실험 상자 7×7×5)의 개수 오차 (MAE, 개) — 낮을수록 좋음", color=INK2)
-    ax.set_title("막대: 7×7×5 시뮬레이션으로 학습   [ ]: 5×5×7로 잘못 설정한 시뮬레이션으로 학습 (같은 실측 녹음으로 평가)\n"
-                 "회색: 기준선 / 파랑: 실측 녹음 미사용 / 초록: 정답 없는 실측 / 주황: 실측 정답 소량",
+    ax.set_title("회색: 기준선 / 파랑: 실측 녹음 미사용 / 초록: 정답 없는 실측 / 주황: 실측 정답 소량",
                  loc="right", fontsize=7.5, color=INK2)
     fig.tight_layout()
     fig.savefig(OUT / "ai_improvement.png", dpi=220, facecolor=SURF)
