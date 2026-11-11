@@ -147,6 +147,35 @@ def fig_vs_physics():
     print("vs physics", {k: np.round(v, 1).tolist() for k, v in rng.items()}, {k: np.round(v).tolist() for k, v in mean.items()})
 
 
+def fig_probe():
+    """개발 단계 모델(V4) 내부 표현에서 선형 회귀로 복원한 물리량의 R² (results/ml/interpret/V4_nosig_dann.json, 시뮬레이션 시험 클립)."""
+    r2 = json.loads((ROOT / "results" / "ml" / "interpret" / "V4_nosig_dann.json").read_text())["probe_r2"]
+    learned = [("개수 N", "N"), ("질량", "mass"), ("지름", "diameter"), ("벽 반발계수", "e_pw"), ("탄성률", "E"), ("마찰계수", "mu_pp")]
+    phase = [("가진 위상 집중도", "gt_phase_concentration"), ("평균 높이", "gt_height_mean"), ("자유 비행 비율", "gt_free_flight"),
+             ("집단성", "gt_collectivity"), ("입자당 충돌 빈도", "gt_impact_rate_per_particle"), ("지속 접촉 비율", "gt_sustained_fraction")]
+    fig, axes = plt.subplots(1, 2, figsize=(7.6, 2.35), facecolor=SURF, sharex=True)
+    for ax, items, color, title in ((axes[0], learned, C1, "학습한 목표"), (axes[1], phase, C2, "운동 상태 지표 (학습하지 않음)")):
+        _ax(ax)
+        ax.xaxis.grid(True, color=GRID, lw=0.8)
+        labels = [a for a, _ in items][::-1]
+        vals = [max(0.0, r2[k]) for _, k in items][::-1]
+        y = np.arange(len(items))
+        ax.barh(y, vals, color=color, height=0.62)
+        for yi, v, lab in zip(y, vals, labels):
+            ax.text(v + 0.015, yi, f"{v:.2f}", va="center", fontsize=7.6, color=INK,
+                    fontweight="bold" if lab == "가진 위상 집중도" else "normal")
+        ax.set_yticks(y, labels, fontsize=8, color=INK)
+        for t in ax.get_yticklabels():
+            if t.get_text() == "가진 위상 집중도":
+                t.set_fontweight("bold")
+        ax.set_xlim(0, 1.08)
+        ax.set_title(title, fontsize=8.6, color=INK, loc="left")
+        ax.set_xlabel("내부 표현에서 복원한 R²", color=INK2, fontsize=8)
+    fig.tight_layout(w_pad=2.0)
+    fig.savefig(OUT / "ai_probe.png", dpi=220, facecolor=SURF)
+    plt.close(fig)
+
+
 def _box(ax, x, y, w, h, text, fc, ec, fs=8.5, bold=False, ls="-"):
     from matplotlib.patches import FancyBboxPatch
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.06",
@@ -232,6 +261,7 @@ if __name__ == "__main__":
     fig_cv()
     fig_range()
     fig_vs_physics()
+    fig_probe()
     fig_flow()
     fig_model()
     print("saved")
