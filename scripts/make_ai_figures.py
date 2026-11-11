@@ -230,6 +230,31 @@ def fig_phase_map():
     print(f"phase map: runs {len(m)}, R2 N {rN:.2f}, epsF {rE:.2f}")
 
 
+def fig_embedding2():
+    """개발 단계 모델(V4) 내부 표현의 주성분 지도 두 칸: 색 = 개수 N, 지름 (results/ml/interpret/embedding_pca_V4.npz, 시뮬레이션 시험 클립)."""
+    from matplotlib.colors import LinearSegmentedColormap
+    z = np.load(ROOT / "results" / "ml" / "interpret" / "embedding_pca_V4.npz")
+    P = z["P"]
+    cmap = LinearSegmentedColormap.from_list("blue_seq", ["#dbe8f8", "#2a78d6", "#0d3a73"])
+    fig, axs = plt.subplots(1, 2, figsize=(7.6, 3.0), facecolor=SURF)
+    for ax, key, lab, title in ((axs[0], "N", "개수 N", "(a) 색: 개수 N"), (axs[1], "diameter_mm", "지름 (mm)", "(b) 색: 지름")):
+        v = z[key].astype(float)
+        o = np.argsort(v)
+        sc = ax.scatter(P[o, 0], P[o, 1], c=v[o], cmap=cmap, s=7, lw=0)
+        ax.set_xticks([]); ax.set_yticks([])
+        for sp in ax.spines.values():
+            sp.set_color(GRID)
+        ax.set_xlabel("주성분 1", color=INK2, fontsize=8)
+        ax.set_ylabel("주성분 2", color=INK2, fontsize=8)
+        ax.set_title(title, loc="left", fontsize=9, color=INK)
+        cb = fig.colorbar(sc, ax=ax, shrink=0.85, pad=0.02)
+        cb.set_label(lab, color=INK2, fontsize=8)
+        cb.outline.set_visible(False)
+    fig.tight_layout(w_pad=2.0)
+    fig.savefig(OUT / "ai_embedding2.png", dpi=220, facecolor=SURF)
+    plt.close(fig)
+
+
 def _box(ax, x, y, w, h, text, fc, ec, fs=8.5, bold=False, ls="-"):
     from matplotlib.patches import FancyBboxPatch
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.06",
@@ -317,6 +342,7 @@ if __name__ == "__main__":
     fig_vs_physics()
     fig_probe()
     fig_phase_map()
+    fig_embedding2()
     fig_flow()
     fig_model()
     print("saved")
